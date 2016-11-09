@@ -1,7 +1,7 @@
 #include <ds3231.h>
 #include <PrNetRomManager.h>
 #include <SimbleeCOM.h>
-#include <Time.h>
+#include <PrTime.h>
 #include <Wire.h>
 
 #define NETWORK_SIZE          16
