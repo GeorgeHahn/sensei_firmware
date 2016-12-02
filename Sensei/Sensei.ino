@@ -10,7 +10,7 @@
 #define BAUD_RATE             115200
 #define USE_SERIAL_MONITOR    false
 
-#define MOTHER_NODE           false
+#define MOTHER_NODE           true
 #define REGION_TRACKER        false
 #define LESSON_TRACKER        false
 #define BOARDS                false
@@ -574,13 +574,14 @@ void setupSensor() {
   while (!timer.isTimeSet) {
     delay(5);
     ch = Serial.read();
-    if (ch == 'T') {
+    if (ch == 'T' || ch == 't') {
       programSystemTime();
-    } else if (ch == 'P') {
+    } else if (ch == 'P' || ch == 'p') {
       romManager.printROM();
-    } else if (ch == 'E') {
+    } else if (ch == 'E' || ch == 'e') {
+      Serial.println("Erasing ROM");
       romManager.eraseROM();
-    } else if (ch == 'D' && MOTHER_NODE) {
+    } else if ((ch == 'D' || ch == 'd') && MOTHER_NODE) {
       Serial.println("Starting Data Transfer");
       parseROMRequest();
       Serial.println("Data Transfer Complete");
@@ -597,4 +598,3 @@ void setupSensor() {
     Serial.end();
   }
 }
-
