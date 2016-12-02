@@ -1,16 +1,16 @@
-#include <ds3231.h>
-#include <PrNetRomManager.h>
+#include "Libraries\ds3231\ds3231.h"
+#include "Libraries\PrNetRomManager\PrNetRomManager.h"
+#include "Libraries\PrTime\PrTime.h"
 #include <SimbleeCOM.h>
-#include <PrTime.h>
 #include <Wire.h>
 
 #define NETWORK_SIZE          16
 #define MAXIMUM_NETWORK_SIZE  42
 #define TX_POWER_LEVEL        -12
-#define BAUD_RATE             57600
+#define BAUD_RATE             115200
 #define USE_SERIAL_MONITOR    false
 
-#define MOTHER_NODE           true
+#define MOTHER_NODE           false
 #define REGION_TRACKER        false
 #define LESSON_TRACKER        false
 #define BOARDS                false
@@ -597,3 +597,4 @@ void setupSensor() {
     Serial.end();
   }
 }
+
