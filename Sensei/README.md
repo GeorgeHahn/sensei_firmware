@@ -32,3 +32,7 @@ Returns device's 32 bit unique ID (in hex)
 Command: 'O'
 
 Returns a comma separated list of device statuses
+
+Example response:
+
+O:0,0,0,0,1,1,0,0,0,0,
