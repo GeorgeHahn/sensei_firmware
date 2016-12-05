@@ -28,3 +28,7 @@ Command: 'I'
 Returns device's 32 bit unique ID (in hex)
 
 
+## Print online devices:
+Command: 'O'
+
+Returns a comma separated list of device statuses
