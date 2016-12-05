@@ -1,5 +1,6 @@
 #include "Libraries\ds3231\ds3231.h"
 #include "Libraries\PrNetRomManager\PrNetRomManager.h"
+#include "Libraries\PrNetRomManager\util.h"
 #include "Libraries\PrTime\PrTime.h"
 #include <SimbleeCOM.h>
 #include <Wire.h>
