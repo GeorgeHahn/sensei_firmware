@@ -11,16 +11,51 @@ PrNetRomManager::PrNetRomManager() {
   loadConfig();
 }
 
+void PrintHexInt(uint32_t data)
+{
+	char tmp[9];
+	for (int8_t i=7; i >= 0; i--)
+	{
+		uint8_t temp = data & 0x0F;
+		if(temp < 0x0A)
+			tmp[i] = '0' + temp;
+		else
+			tmp[i] = 'A' - 0xA + temp;
+		data >>= 4;
+	}
+	tmp[8] = 0;
+	Serial.print(tmp);
+}
+
+void PrintHexByte(uint8_t data)
+{
+	char tmp[3];
+	for (int8_t i=1; i >= 0; i--)
+	{
+		uint8_t temp = data & 0x0F;
+		if(temp < 0x0A)
+			tmp[i] = '0' + temp;
+		else
+			tmp[i] = 'A' - 0xA + temp;
+		data >>= 4;
+	}
+	tmp[2] = 0;
+	Serial.print(tmp);
+}
+
 void PrNetRomManager::printPage(int page) {
-  Serial.println(page);
-  data *p = (data*) ADDRESS_OF_PAGE(page);
-  for (int i = 0; i < MAX_ROWS; i++) {
-  	if ((p -> data[i]) == -1) {
-  	  Serial.println(-1);
-  	} else {
-  	  Serial.println(p -> data[i]);
-  	}
-  }
+	data *p = (data*) ADDRESS_OF_PAGE(page);
+	for (int i = 0; i < MAX_ROWS; i++) {
+		if ((p -> data[i]) == 0xFFFFFFFF) {
+			
+		} else {
+			PrintHexByte(page);
+			PrintHexByte(i);
+			Serial.print(": ");
+			PrintHexInt(p -> data[i]);
+			Serial.println();
+		}
+	}
 }
 
 void PrNetRomManager::printROM() {
@@ -28,7 +63,7 @@ void PrNetRomManager::printROM() {
     printPage(i);
     data *p = (data*) ADDRESS_OF_PAGE(i);
     if ((p -> data[0]) == -1) {
-      break;
+      //break;
     }
   }
   Serial.println("Printed ROM");
