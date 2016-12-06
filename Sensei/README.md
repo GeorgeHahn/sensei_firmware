@@ -36,3 +36,12 @@ Returns a comma separated list of device statuses
 Example response:
 
 O:0,0,0,0,1,1,0,0,0,0,
+
+## Download device data
+Command: 'D'
+
+Returns data from selected device(s)
+
+Format: [0xN].
+
+Where N is an array of bytes offset by ASCII '0' (0x30) corresponding to the devices that should be downloaded.

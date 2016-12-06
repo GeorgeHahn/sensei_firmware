@@ -11,13 +11,17 @@
 #define BAUD_RATE				250000
 #define USE_SERIAL_MONITOR		true
 
-// Unique device ID (TODO: Remove this)
-#define deviceID (3)
-
 #define MOTHER_NODE				true
 #define REGION_TRACKER			false
 #define LESSON_TRACKER			false
 #define STUDENT_TRACKER			false
+
+// Unique device ID (TODO: Remove this)
+#if MOTHER_NODE == true
+#define deviceID (0)
+#else
+#define deviceID (1)
+#endif
 
 #define START_HOUR				9
 #define START_MINUTE			0
@@ -52,8 +56,10 @@
 
 #ifdef DEBUG
 #define d(x) Serial.println(x)
+#define dn(x) Serial.print(x)
 #else
 #define d(x)
+#define dn(x)
 #endif
 
 #pragma GCC diagnostic error "-Wall"
@@ -69,7 +75,7 @@ PrNetRomManager romManager;
 int rssiTotal[NETWORK_SIZE];
 int rssiCount[NETWORK_SIZE];
 
-#ifdef MOTHER_NODE
+#if MOTHER_NODE == true
 // Mother node device tracking
 unsigned long deviceOnlineTime[NETWORK_SIZE];
 #endif
@@ -173,7 +179,6 @@ void InterpretCommand()
 
 void loop() {
 	synchronizeTime();
-	shareTime();
 	if (MOTHER_NODE) {
 		delay(5);
 		InterpretCommand();
@@ -203,7 +208,7 @@ void loop() {
  * Outputs whether each device is online
  */
 
-#ifdef MOTHER_NODE
+#if MOTHER_NODE == true
 void printOnlineDevices() {
 	Serial.print("O" + String(":"));
 	for (int i = 0; i < NETWORK_SIZE; i++) {
@@ -211,6 +216,8 @@ void printOnlineDevices() {
 	}
 	Serial.println();
 }
+#else
+void printOnlineDevices() {}	
 #endif
 
 int onInterrupt(uint32_t ulPin) {
@@ -221,11 +228,11 @@ int onInterrupt(uint32_t ulPin) {
 		interruptTime = 0;
 	}
 	foundRTCTransition = false;
-	timer.displayDateTime();
+	dn("Time: "); timer.displayDateTime();
 	collectData = ((timer.initialTime.seconds + timer.secondsElapsed) % 10 < SECONDS_TO_COLLECT) && 
 					timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE);
 	
-	#ifdef MOTHER_NODE
+	#if MOTHER_NODE == true
 	syncTime = true;
 	#else
 	syncTime = (timer.secondsElapsed >= MINUTES_BETWEEN_SYNC * 60 &&
@@ -238,22 +245,22 @@ int onInterrupt(uint32_t ulPin) {
 }
 
 void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi) {
-	d("SimbleeCOM payload received");
-	d(esn);
-	d(payload);
-	d(rssi);
-	d(len);
+	dn("Msg "); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
 	
-	#ifdef MOTHER_NODE
+	int id = (int) payload[0];
+	#if MOTHER_NODE == true
 	// Mother node online device tracking
-	if ((int) payload[0] >= 0 && 
-				(int) payload[0] < NETWORK_SIZE && 
-				(len == 1 || len == 8)) {
-		deviceOnlineTime[(int) payload[0]] = millis();
-	} else if ((int) payload[0] >= 0 && 
-				(int) payload[0] < NETWORK_SIZE && 
+	if (id >= 0 && id < NETWORK_SIZE && 
+			(len == 1 || len == 8)) {
+		// Proximity beacon
+		// 0xID
+		dn("Device online: "); d(id);
+		deviceOnlineTime[id] = millis();
+	} else if (id >= 0 && id < NETWORK_SIZE && 
 				transferROM && 
 				len == 13) {
+		// ?
+		dn("Got line from: "); d(id);
 		if (transferPage == (int) payload[1] &&
 				(romManager.transferredData.data[(int) payload[2]] == 0 && 
 				romManager.transferredData.data[((int) payload[2] + 1) % MAX_ROWS] == 0) &&
@@ -278,11 +285,24 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 										 (((romManager.transferredData.data[(((int) payload[2]) + 1) % MAX_ROWS]) == (int) -1) ? "-1" : String(romManager.transferredData.data[(((int) payload[2]) + 1) % MAX_ROWS])));
 		}
 	} else if (len == 2) {
+		// ?
+		d("Last page");
 		lastPage = true;
 		lastTransferTime = millis();
-	} else if ((int) payload[0] == transferDevice && 
+	} else if (id == transferDevice && 
 				len == 3) {
+		// ?
+		d("transferROM");
 		transferROM = (((int) payload[1] != (char) -1) || ((int) payload[2] != (char) -1));
+	} else if (id = 0xFF &&
+				len == 5){
+		// Request network ID
+		// 0xFF, 0xDEADBEEF
+		// Last four bytes should be randomly generated and will be sent out with the
+		// assignment message to ensure two devices don't try to take the same ID
+		
+		// TODO: Respond with this device's new ID
+		// 
 	} else {
 		d("Invalid payload");
 		d(esn);
@@ -292,16 +312,16 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 	}
 	#else
 	// Recording RSSI data
-	if ((int) payload[0] >= 0 && 
-		(int) payload[0] < NETWORK_SIZE && 
+	if (id >= 0 && id < NETWORK_SIZE && 
 		(len == 1 || len == 8) &&
 		timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
-		rssiTotal[(int) payload[0]] += rssi;
-		rssiCount[(int) payload[0]]++;
+		d("RSSI");
+		rssiTotal[id] += rssi;
+		rssiCount[id]++;
 		newData = true;
 	// Time sharing
-	} else if (!timer.isTimeSet && 
-				len == 8) {
+	} else if (len == 8) { //!timer.isTimeSet && 
+		d("Time received");
 		timer.setInitialTime((int) payload[1], (int) payload[2], (int) payload[3], (int) payload[4],(int) payload[5], (int) payload[6], (int) payload[7]);
 		timer.totalSecondsElapsed = 1;
 		timer.secondsElapsed = 1;
@@ -309,8 +329,9 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 		setRTCTime();
 		startInterrupt();
 	// Data transfer protocol
-	} else if ((int) payload[0] == deviceID && 
+	} else if (id == deviceID && 
 				len == 3) {
+		d("Data transfer");
 		erase = ((int) payload[1] == (char) -1) && ((int) payload[2] == (char) -1);
 		transferROM = ((int) payload[1] != (char) -1) && ((int) payload[2] != (char) -1);
 		transferPage = transferROM ? (int) payload[1] : transferPage;
@@ -320,11 +341,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 			romManager.loadPage(transferPage);
 		}
 	} else {
-		d("Invalid payload");
-		d(esn);
-		d(payload);
-		d(rssi);
-		d(len);
+		dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
 	}
 	#endif
 }
@@ -376,12 +393,8 @@ void synchronizeTime() {
 		Serial.print("RTC Time: ");
 		timer.displayDateTime();
 	}
-}
 
-/*
- * Shares RTC time at rising edge of the clock second
- */
-void shareTime() {
+	// Shares RTC time at rising edge of the clock second
 	if (MOTHER_NODE ||
 		collectData ||
 		(!timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
@@ -411,12 +424,13 @@ void shareTime() {
  */
 void acknowledgeTimeReceipt() {
 	discoveryTime = millis();
-	while (!MOTHER_NODE && 
-			!timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
+	if(MOTHER_NODE) {
+		return;
+	}
+	while (!timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
 			!timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
 		delay(100);
 		synchronizeTime();
-		shareTime();
 	}
 }
 
@@ -525,12 +539,10 @@ void writeDataRow(uint8_t data) {
  */
 void parseROMRequest() {
 	Serial.println("Starting Data Transfer");
-	String input = Serial.readString();
-	for (int i = 0; i < NETWORK_SIZE; i++) {
-		if (input.charAt(i) - '0' && input.charAt(i) != '\0') {
-			transferDevice = i;
-			sendROMRequest();
-		}
+	int input = 0;
+	while(input = Serial.read() != '.') {
+		transferDevice = input - '0';
+		sendROMRequest();
 	}
 	Serial.println("Data Transfer Complete");
 }
