@@ -17,14 +17,7 @@
 #define STUDENT_TRACKER			false
 
 #if MOTHER_NODE == true
-
-// Unique device ID (TODO: Remove this)
-#define deviceID (0)
 #define IS_MOTHER_NODE
-
-#else
-
-#define deviceID (1)
 #endif
 
 #define START_HOUR				9
@@ -69,6 +62,9 @@
 #pragma GCC diagnostic error "-Wall"
 #pragma GCC diagnostic error "-Werror"
 
+#define COMMAND_SHARED_TIME 254
+#define COMMAND_RESPONSE_ROWS 255
+
 // Time keeping data structure
 Time timer;
 // RTC time data structure
@@ -78,6 +74,32 @@ PrNetRomManager romManager;
 // RSSI total and count for each device
 int rssiTotal[NETWORK_SIZE];
 int rssiCount[NETWORK_SIZE];
+
+uint16_t deviceIndex[NETWORK_SIZE];
+uint8_t devicesSeen = 0;
+
+uint16_t getDeviceUid(uint32_t esn)
+{
+	return (esn & 0xFFFF) ^ ((esn >> 16) & 0xFFFF);
+}
+
+uint8_t getDeviceIndex(uint32_T esn)
+{
+	uint16_t uid = getDeviceUid(esn);
+	for(uint8_t i = 0; i < NETWORK_SIZE; i++) {
+		if(deviceIndex[i] == uid)
+		{
+			return i;
+		}
+	}
+	deviceIndex[devicesSeen] = uid;
+	if(devicesSeen >= NETWORK_SIZE) {
+		d("Device array overflow - increase NETWORK_SIZE");
+	}
+	return devicesSeen++;
+}
+
+
 
 #ifdef IS_MOTHER_NODE
 // Mother node device tracking
@@ -91,11 +113,9 @@ bool collectData;
 // Boolean on whether radio stack is on
 bool broadcasting;
 // Time keeping and time sharing variables
-int interruptTime;
 int lastRTCSecond;
 bool syncTime;
 unsigned long ms;
-bool foundRTCTransition;
 // Time acknowledgment variable
 unsigned long discoveryTime;
 // Data transfer protocol state variables
@@ -118,7 +138,8 @@ int accelerometerCount;
 
 void setup() {
 	pinMode(RTC_INTERRUPT_PIN, INPUT_PULLUP);
-	Simblee_pinWakeCallback(RTC_INTERRUPT_PIN, HIGH, onInterrupt);
+	Simblee_pinWakeCallback(RTC_INTERRUPT_PIN, HIGH, RTC_Interrupt);
+	
 	SimbleeCOM.txPowerLevel = MOTHER_NODE ? 4 : TX_POWER_LEVEL;
 	
 	randomSeed(analogRead(UNUSED_ANALOG_PIN));
@@ -141,9 +162,37 @@ void setup() {
 	}
 	
 	setupSensor();
-	setupAccelerometer();
+	
+if (STUDENT_TRACKER || LESSON_TRACKER) {
+		setupAccelerometer();
+	}
 }
 
+/*
+ * Interfaces with device to receive time or print ROM data
+ */
+void setupSensor() {
+	Serial.begin(BAUD_RATE);
+	resetROM();
+	stopInterrupt();
+	startBroadcast();
+	while (!timer.isTimeSet) {
+		if(!MOTHER_NODE) {
+			if (transferROM) {
+				sendROMResponse();
+			} else if (erase) {
+				remoteEraseROM();
+			}
+		}
+		delay(5);
+		
+		InterpretCommand();
+		acknowledgeTimeReceipt();
+	}
+	if (!MOTHER_NODE && !USE_SERIAL_MONITOR) {
+		Serial.end();
+	}
+}
 
 void InterpretCommand()
 {
@@ -183,18 +232,19 @@ void InterpretCommand()
 
 void loop() {
 	synchronizeTime();
+	
 #ifdef IS_MOTHER_NODE
 	delay(5);
 	InterpretCommand();
 #else
-	if (collectData && foundRTCTransition) {
+	if (collectData) {
 		startBroadcast();
 		delay(random(MS_SEND_DELAY_MIN, MS_SEND_DELAY_MAX));
 		if (!REGION_TRACKER) {
 			enableAccelerometer();
 			readAcc();
 			timer.updateTime();
-			char payload[] = {deviceID};
+			char payload[] = {};
 			SimbleeCOM.send(payload, sizeof(payload));
 		}
 	} else {
@@ -221,51 +271,82 @@ void printOnlineDevices() {
 	Serial.println();
 }
 #else
-void printOnlineDevices() {}	
+void printOnlineDevices() {}
 #endif
 
-int onInterrupt(uint32_t ulPin) {
-	interruptTime += millis() - ms;
-	if (interruptTime > 995) {
-		timer.totalSecondsElapsed++;
-		timer.secondsElapsed++;
-		interruptTime = 0;
-	}
-	foundRTCTransition = false;
-	dn("Time: "); timer.displayDateTime();
-	collectData = ((timer.initialTime.seconds + timer.secondsElapsed) % 10 < SECONDS_TO_COLLECT) && 
-					timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE);
+#ifdef IS_MOTHER_NODE
+int RTC_Interrupt(uint32_t ulPin) {
+	timer.totalSecondsElapsed++;
+	timer.secondsElapsed++;
 	
-	#ifdef IS_MOTHER_NODE
+	dn("Time: "); timer.displayDateTime();
 	syncTime = true;
-	#else
+	return 0;
+}
+#else
+uint8_t collectData_count = 0;
+int RTC_Interrupt(uint32_t ulPin) {
+	// TODO: If after 4pm, set an alarm for the next morning at 9am and sleep until then
+	
+	timer.totalSecondsElapsed++;
+	timer.secondsElapsed++;
+	
+	dn("Time: "); timer.displayDateTime();
+	
+	collectData_count++;
+	if(collectData_count > 10) {
+		collectData = timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE);
+		collectData_count = 0;
+	}
+	
 	syncTime = (timer.secondsElapsed >= MINUTES_BETWEEN_SYNC * 60 &&
 					!timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) ||
 				!timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
 					!timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE) ||
 				collectData;
-	#endif
-	return collectData || syncTime;
+	return 0;
 }
+#endif
 
+#ifdef IS_MOTHER_NODE
 void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi) {
-	dn("Msg "); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
+	dn("Msg "); dn(len); dn(" "); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
 	
 	uint8_t command = payload[0];
 	
 	// Over the air protocol:
 	// Byte 0:
-	// 1-50: Is a proximity beacon
-	// 255 down: Is a packet
+	//	0: 
+	//	1-50: Is a proximity beacon
+	//	255 down: Is a packet
 	if(command == 0) {
 		
 	} else if(command < 50) {
 		// Proximity beacon
-		// 0xID
-		dn("Device online: "); d(command);
-		
-		#ifdef IS_MOTHER_NODE
-		if(id == transferDevice) {
+		dn("Device online: "); d(esn);
+
+		// Mother node online device tracking
+		deviceOnlineTime[getDeviceIndex(esn)] = millis();
+	} else switch(command) {
+		case COMMAND_SHARED_TIME:
+			break;
+		case COMMAND_RESPONSE_ROWS:
+			if(command == transferDevice) {
+				if(len == 2) {
+					d("Last page");
+					lastPage = true;
+					lastTransferTime = millis();
+				} else if(len == 3) {
+					d("transferROM");
+					transferROM = (((int) payload[1] != (char) -1) || ((int) payload[2] != (char) -1));
+				}
+			}
+			break;
+		default:
+			dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
+			break;
+			/* 
+		if(command == transferDevice) {
 			if(len == 2) {
 				d("Last page");
 				lastPage = true;
@@ -275,14 +356,9 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 				transferROM = (((int) payload[1] != (char) -1) || ((int) payload[2] != (char) -1));
 			}
 		}
-
-		// Mother node online device tracking
-			// (len == 1 || len == 8)
-		deviceOnlineTime[command] = millis();
-		
 		// ?
 		if(transferROM && len == 13) {
-			dn("Got line from: "); d(id);
+			dn("Got line from: "); d(command);
 			if (transferPage == (int) payload[1] &&
 					(romManager.transferredData.data[(int) payload[2]] == 0 && 
 					romManager.transferredData.data[((int) payload[2] + 1) % MAX_ROWS] == 0) &&
@@ -307,7 +383,27 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 											 (((romManager.transferredData.data[(((int) payload[2]) + 1) % MAX_ROWS]) == (int) -1) ? "-1" : String(romManager.transferredData.data[(((int) payload[2]) + 1) % MAX_ROWS])));
 			}
 		}
-		#else
+		*/
+	}
+}
+#else
+void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi) {
+	dn("Msg "); dn(len); dn(" "); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
+	
+	uint8_t command = payload[0];
+	
+	// Over the air protocol:
+	// Byte 0:
+	// 0: 
+	// 1-50: Is a proximity beacon
+	// 255 down: Is a packet
+	if(command == 0) {
+		
+	} else if(command < 50) {
+		// Proximity beacon
+		// 0xID
+		dn("Device online: "); d(command);
+		
 		if(command == deviceID) {
 			d("Data transfer");
 			erase = ((int) payload[1] == (char) -1) && ((int) payload[2] == (char) -1);
@@ -322,39 +418,29 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 			// Recording RSSI data
 			d("RSSI");
 			if(timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
-				rssiTotal[id] += rssi;
-				rssiCount[id]++;
+				uint8_t index = getDeviceIndex(esn);
+				rssiTotal[index] += rssi;
+				rssiCount[index]++;
 				newData = true;
 			}
 		}
-		#endif
 	} else switch(command) {
-		case 254:
+		case COMMAND_SHARED_TIME:
 			// Time sharing
-			// if(!timer.isTimeSet)
 			d("Time received");
 			timer.setInitialTime((int) payload[1], (int) payload[2], (int) payload[3], (int) payload[4],(int) payload[5], (int) payload[6], (int) payload[7]);
 			timer.totalSecondsElapsed = 1;
 			timer.secondsElapsed = 1;
-			interruptTime = 0;
 			setRTCTime();
 			startInterrupt();
-		case 255:
-			// Request network ID
-			// 0xFF, 0xDEADBEEF
-			// Last four bytes should be randomly generated and will be sent out with the
-			// assignment message to ensure two devices don't try to take the same ID
-			
-			// TODO: Respond with this device's new ID
-			#ifdef IS_MOTHER_NODE
-			
-			#endif
+		case COMMAND_RESPONSE_ROWS:
 			break;
 		default:
 			dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
 			break;
 	}
 }
+#endif
 
 ////////// Time Functions //////////
 
@@ -383,7 +469,6 @@ void programSystemTime() {
 						(systemTime[11] - '0') * 10 + (systemTime[12] - '0')); // SS
 	timer.totalSecondsElapsed = 1;
 	timer.secondsElapsed = 1;
-	interruptTime = 0;
 	setRTCTime();
 	startInterrupt();
 	Serial.print("Time set to ");
@@ -412,16 +497,15 @@ void synchronizeTime() {
 		DS3231_get(&rtcTime);
 		if (rtcTime.sec == (lastRTCSecond + 1) % 60) {
 			lastRTCSecond = rtcTime.sec;
-			foundRTCTransition = true;
 			startBroadcast();
 			if ((MOTHER_NODE && timer.totalSecondsElapsed > 5) ||
 				(!MOTHER_NODE && timer.totalSecondsElapsed > 15)) {
-				char payload[] = {deviceID, timer.t.month, timer.t.date, timer.t.year, timer.t.day,
+				char payload[] = {timer.t.month, timer.t.date, timer.t.year, timer.t.day,
 									timer.t.hours, timer.t.minutes, timer.t.seconds};
 				d("SimbleCOM send time");
 				SimbleeCOM.send(payload, sizeof(payload));
 			} else {
-				char payload[] = {deviceID};
+				char payload[] = {};
 				d("SimbleCOM send ID");
 				SimbleeCOM.send(payload, sizeof(payload));
 			}
@@ -432,17 +516,18 @@ void synchronizeTime() {
 /*
  * Acknowledges receipt of time for non-mother node sensors
  */
+#ifdef IS_MOTHER_NODE
+void acknowledgeTimeReceipt() {}
+#else
 void acknowledgeTimeReceipt() {
 	discoveryTime = millis();
-	if(MOTHER_NODE) {
-		return;
-	}
 	while (!timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
 			!timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
 		delay(100);
 		synchronizeTime();
 	}
 }
+#endif
 
 ////////// Radio Functions //////////
 
@@ -473,8 +558,7 @@ void stopBroadcast() {
 ////////// ROM Functions //////////
 
 /*
- * Stores deviceID (I), RSSI (R), and time (T) as I,IRR,TTT,TTT with maximum value of 4,294,967,295, (2^32 - 1)
- * Stores x and z accelerometer data as 4,1ZZ,ZZX,XXX
+ * Stores deviceID (I), RSSI (R), and time (T)
  */
 void writeData() {
 	if (romManager.config.pageCounter < LAST_STORAGE_PAGE) {
@@ -485,39 +569,54 @@ void writeData() {
 		clearAccelerometerState();
 	}
 	if (newData) {
+		newData = false;
 		timer.updateTime();
-		int data = (timer.t.seconds % 60) + 
-					((timer.t.minutes % 60) * 100) + 
-					((timer.t.hours % 24) * 10000);
-					
+		// Time format: (total seconds since 5am)/10 (fits into 13 bits)
+		int time = (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10);
+		
 		romManager.loadPage(romManager.config.pageCounter);
 		
-		for (int i = 0; i < NETWORK_SIZE; i++) {
+		for (int i = 0; i < devicesSeen; i++) {
+			uint16_t deviceUid = deviceIndex[i];
 			int rssiAverage = (rssiCount[i] == 0) ? -128 : rssiTotal[i] / rssiCount[i];
-			Serial.println(String(i) + "\t" + String(rssiAverage) + "\t" + String(rssiCount[i]));
+			Serial.println(String(i) + "\t" + String(deviceUid) + "\t" + String(i) + "\t" + String(rssiAverage) + "\t" + String(rssiCount[i]));
 			if (rssiAverage > -100) {
 				if (romManager.config.rowCounter >= MAX_ROWS) {
 					romManager.writePage(romManager.config.pageCounter, romManager.table);
 				}
-				romManager.table.data[romManager.config.rowCounter] = data +
-																		(abs(rssiAverage % 100) * 1000000) +
-																		((i % MAXIMUM_NETWORK_SIZE) * 100000000);
+				
+				if(rssiAverage > -40) {
+					rssiAverage = 3;
+				} else if(rssiAverage > -60) {
+					rssiAverage = 2;
+				} else if(rssiAverage > -80) {
+					rssiAverage = 1;
+				} else { // > -100
+					rssiAverage = 0;
+				}
+				
+				// 0b1, Time (13 bits), rssi (2 bits), unique ID (16 bits)
+				romManager.table.data[romManager.config.rowCounter] = 0x8000 | // Time row header
+																		time & 0x1FFF << 18 |
+																		rssiAverage & 0x3 << 16 |
+																		deviceUid & 0xFFFF;
 				romManager.config.rowCounter++;
 			}
 			rssiTotal[i] = 0;
 			rssiCount[i] = 0;
 		}
+		
+		// Erase everything after the current row (?)
 		for (int i = romManager.config.rowCounter; i < MAX_ROWS; i++) {
 			romManager.table.data[i] = -1;
 		}
 		romManager.writePage(romManager.config.pageCounter, romManager.table);
 	}
-	newData = false;
 }
 
 /*
- * Stores timestamp as HHM,MSS
- * Stores x and z accelerometer data as 4,1ZZ,ZZX,XXX
+ * Stores timestamp OR
+ * Stores x and z accelerometer data OR
  * Stores reset marker as 999,999,999
  */
 void writeDataRow(uint8_t data) {
@@ -530,14 +629,17 @@ void writeDataRow(uint8_t data) {
 	romManager.loadPage(romManager.config.pageCounter);
 	if (data == ROW_TIME) {
 		timer.updateTime();
-		romManager.table.data[romManager.config.rowCounter] = (timer.t.seconds % 60) +
-																((timer.t.minutes % 60) * 100) +
-																((timer.t.hours % 24) * 10000);
+		// 0b00 14 bits 0x0000... time
+		int time = ((((timer.t.hours * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10);
+		romManager.table.data[romManager.config.rowCounter] = time;
 	} else if (data == ROW_ACCEL) {
-		romManager.table.data[romManager.config.rowCounter] = (min(xAccelerometerDiff / (10 * accelerometerCount), 9999) * 1) + 
-																(min(zAccelerometerDiff / (10 * accelerometerCount), 9999) * 10000) +
-																4100000000;
+		// 28 bits
+		// 0b01 XXXXXXXXXXXXXXZZZZZZZZZZZZZZ
+		romManager.table.data[romManager.config.rowCounter] = 0x4000 | // Accel row header
+																(min(xAccelerometerDiff / (10 * accelerometerCount), 0x3FFF)) |
+																(min(zAccelerometerDiff / (10 * accelerometerCount), 0x3FFF) << 14);
 	} else if (data == ROW_RESET) {
+		// 0b0011 (0x3B9AC9FF)
 		romManager.table.data[romManager.config.rowCounter] = 999999999;
 	}
 	romManager.config.rowCounter++;
@@ -603,22 +705,28 @@ void sendROMResponse() {
 	lastPage = (p -> data[0]) == -1 || transferPage <= LAST_STORAGE_PAGE;
 	if (lastPage) {
 		delay(15);
-		char payload[] = {deviceID, transferPage};
+		char payload[] = {transferPage};
 		SimbleeCOM.send(payload, sizeof(payload));
 	}
 	while (transferRow < MAX_ROWS) {
 		delay(15);
-		char payload[] = {deviceID, transferPage, transferRow,
-			(romManager.table.data[transferRow] - (romManager.table.data[transferRow] / 10000000000) * 10000000000) / 100000000,
-			(romManager.table.data[transferRow] - (romManager.table.data[transferRow] / 100000000) * 100000000) / 1000000,
-			(romManager.table.data[transferRow] - (romManager.table.data[transferRow] / 1000000) * 1000000) / 10000,
-			(romManager.table.data[transferRow] - (romManager.table.data[transferRow] / 10000) * 10000) / 100,
-			(romManager.table.data[transferRow] - (romManager.table.data[transferRow] / 100) * 100) / 1,
-			(romManager.table.data[(transferRow + 1) % MAX_ROWS] - (romManager.table.data[(transferRow + 1) % MAX_ROWS] / 10000000000) * 10000000000) / 100000000,
-			(romManager.table.data[(transferRow + 1) % MAX_ROWS] - (romManager.table.data[(transferRow + 1) % MAX_ROWS] / 100000000) * 100000000) / 1000000,
-			(romManager.table.data[(transferRow + 1) % MAX_ROWS] - (romManager.table.data[(transferRow + 1) % MAX_ROWS] / 1000000) * 1000000) / 10000,
-			(romManager.table.data[(transferRow + 1) % MAX_ROWS] - (romManager.table.data[(transferRow + 1) % MAX_ROWS] / 10000) * 10000) / 100,
-			(romManager.table.data[(transferRow + 1) % MAX_ROWS] - (romManager.table.data[(transferRow + 1) % MAX_ROWS] / 100) * 100) / 1};
+		char payload[11];
+		payload[0] = COMMAND_RESPONSE_ROWS;
+		payload[1] = transferPage;
+		payload[2] = transferRow;
+		for(int i = 0; i < 4; i++){
+			payload[3+i] = (romManager.table.data[transferRow] >> (8*i))& 0xFF;
+			payload[7+i] = (romManager.table.data[(transferRow + 1) % MAX_ROWS] >> (8*i))& 0xFF;
+		}
+		
+		d("");
+		d("---");
+		PrintHexInt(romManager.table.data[transferRow]); d("");
+		PrintHexInt(romManager.table.data[(transferRow + 1) % MAX_ROWS]); d("");
+		d("");
+		for(int i = 0; i < 11; i++){
+			PrintHexByte(payload[i]);
+		}
 		SimbleeCOM.send(payload, sizeof(payload));
 		transferRow += 2;
 	}
@@ -690,10 +798,6 @@ void stopInterrupt() {
 ////////// Accelerometer Functions //////////
 
 void setupAccelerometer() {
-	if (!STUDENT_TRACKER && !LESSON_TRACKER) {
-		return;
-	}
-	
 	pinMode(ACCEL_POWER_PIN, OUTPUT);
 }
 
@@ -743,30 +847,3 @@ void disableSerialMonitor() {
 	}
 }
 
-////////// Sensor Setup Functions //////////
-
-/*
- * Interfaces with device to receive time or print ROM data
- */
-void setupSensor() {
-	Serial.begin(BAUD_RATE);
-	resetROM();
-	stopInterrupt();
-	startBroadcast();
-	while (!timer.isTimeSet) {
-		if(!MOTHER_NODE) {
-			if (transferROM) {
-				sendROMResponse();
-			} else if (erase) {
-				remoteEraseROM();
-			}
-		}
-		delay(5);
-		
-		InterpretCommand();
-		acknowledgeTimeReceipt();
-	}
-	if (!MOTHER_NODE && !USE_SERIAL_MONITOR) {
-		Serial.end();
-	}
-}
