@@ -5,6 +5,12 @@
 #include <SimbleeCOM.h>
 #include <Wire.h>
 
+// TODO
+//	Use RTC alarm to wake up at the beginning of START_HOUR:START_MINUTE
+//	Increase I2C speed to 400kHz
+//	Why are we including the DS3231 library if we're not using it?
+
+
 #define NETWORK_SIZE			16
 #define MAXIMUM_NETWORK_SIZE	42
 #define TX_POWER_LEVEL			-12
@@ -62,8 +68,15 @@
 #pragma GCC diagnostic error "-Wall"
 #pragma GCC diagnostic error "-Werror"
 
+// Radio commands
 #define COMMAND_SHARED_TIME 254
 #define COMMAND_RESPONSE_ROWS 255
+
+// Flash storage headers
+#define DATA_ROW_HEADER 0x80000000
+#define ACCEL_ROW_HEADER 0x40000000
+#define TIME_ROW_HEADER 0x20000000
+#define RESET_ROW_HEADER 0x3B9AC9FF // 999999999
 
 // Time keeping data structure
 Time timer;
@@ -345,6 +358,8 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 		default:
 			dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
 			break;
+			
+		// TODO: transfer protocol
 			/* 
 		if(command == transferDevice) {
 			if(len == 2) {
@@ -556,6 +571,13 @@ void stopBroadcast() {
 }
 
 ////////// ROM Functions //////////
+/*
+ * Time format: (total seconds since 5am)/10 (fits into 13 bits)
+ */
+uint16_t GetTime() {
+	timer.updateTime();
+	return (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10);
+}
 
 /*
  * Stores deviceID (I), RSSI (R), and time (T)
@@ -570,9 +592,6 @@ void writeData() {
 	}
 	if (newData) {
 		newData = false;
-		timer.updateTime();
-		// Time format: (total seconds since 5am)/10 (fits into 13 bits)
-		int time = (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10);
 		
 		romManager.loadPage(romManager.config.pageCounter);
 		
@@ -596,8 +615,8 @@ void writeData() {
 				}
 				
 				// 0b1, Time (13 bits), rssi (2 bits), unique ID (16 bits)
-				romManager.table.data[romManager.config.rowCounter] = 0x8000 | // Time row header
-																		time & 0x1FFF << 18 |
+				romManager.table.data[romManager.config.rowCounter] = DATA_ROW_HEADER |
+																		GetTime() & 0x1FFF << 18 |
 																		rssiAverage & 0x3 << 16 |
 																		deviceUid & 0xFFFF;
 				romManager.config.rowCounter++;
@@ -629,18 +648,16 @@ void writeDataRow(uint8_t data) {
 	romManager.loadPage(romManager.config.pageCounter);
 	if (data == ROW_TIME) {
 		timer.updateTime();
-		// 0b00 14 bits 0x0000... time
-		int time = ((((timer.t.hours * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10);
-		romManager.table.data[romManager.config.rowCounter] = time;
+		romManager.table.data[romManager.config.rowCounter] = TIME_ROW_HEADER | 
+																GetTime();
 	} else if (data == ROW_ACCEL) {
 		// 28 bits
-		// 0b01 XXXXXXXXXXXXXXZZZZZZZZZZZZZZ
-		romManager.table.data[romManager.config.rowCounter] = 0x4000 | // Accel row header
+		// XXXXXXXXXXXXXXZZZZZZZZZZZZZZ
+		romManager.table.data[romManager.config.rowCounter] = ACCEL_ROW_HEADER |
 																(min(xAccelerometerDiff / (10 * accelerometerCount), 0x3FFF)) |
 																(min(zAccelerometerDiff / (10 * accelerometerCount), 0x3FFF) << 14);
 	} else if (data == ROW_RESET) {
-		// 0b0011 (0x3B9AC9FF)
-		romManager.table.data[romManager.config.rowCounter] = 999999999;
+		romManager.table.data[romManager.config.rowCounter] = RESET_ROW_HEADER;
 	}
 	romManager.config.rowCounter++;
 	romManager.writePage(romManager.config.pageCounter, romManager.table);
