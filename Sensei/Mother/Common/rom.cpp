@@ -10,12 +10,10 @@ PrNetRomManager romManager;
 
 // Data transfer protocol state variables
 bool transferROM;
-int transferDevice;
 int transferPage;
 int transferRow;
 bool transferPageSuccess;
 bool lastPage;
-bool erase;
 
 unsigned long lastTransferTime;
 unsigned long dataTransferTime;
@@ -123,56 +121,6 @@ void writeDataRow(uint8_t data) {
 }
 
 /*
- * Parses ROM request from the cellphone application
- */
-void parseROMRequest() {
-	Serial.println("Starting Data Transfer");
-	int input = 0;
-	while(input = Serial.read() != '.') {
-		transferDevice = input - '0';
-		sendROMRequest();
-	}
-	Serial.println("Data Transfer Complete");
-}
-
-/*
- * Send request for ROM data to network nodes
- */
-void sendROMRequest() {
-	transferPage = STORAGE_FLASH_PAGE;
-	transferROM = true;
-	bool timedOut = false;
-	dataTransferTime = millis();
-	while (transferROM) {
-		transferPageSuccess = lastPage = false;
-		while (!transferPageSuccess) {
-			if (timer.timeout(&lastTransferTime, 50)) {
-				char payload[] = {transferDevice, transferPage, transferRow};
-				SimbleeCOM.send(payload, sizeof(payload));
-				lastTransferTime = millis();
-			}
-			delay(50);
-			if (timer.timeout(&dataTransferTime, SECONDS_TO_TRANSFER * 1000)) {
-				dataTransferTime = millis();
-				transferROM = false;
-				timedOut = true;
-				break;
-			}
-		}
-		romManager.clearTransferredData();
-		if (lastPage || transferPage <= LAST_STORAGE_PAGE) {
-			while (transferROM) {
-				delay(50);
-				char payload[] = {transferDevice, -1, -1};
-				SimbleeCOM.send(payload, sizeof(payload));
-			}
-		}
-		transferPage--;
-	}
-	Serial.println("D," + String(transferDevice) + "," + String(timedOut));
-}
-
-/*
  * Send response for ROM data to mother node
  */
 void sendROMResponse() {
@@ -187,12 +135,12 @@ void sendROMResponse() {
 	while (transferRow < MAX_ROWS) {
 		delay(15);
 		char payload[11];
-		payload[0] = COMMAND_RESPONSE_ROWS;
+		payload[0] = RADIO_RESPONSE_ROWS;
 		payload[1] = transferPage;
 		payload[2] = transferRow;
 		for(int i = 0; i < 4; i++){
-			payload[3+i] = (romManager.table.data[transferRow] >> (8*i))& 0xFF;
-			payload[7+i] = (romManager.table.data[(transferRow + 1) % MAX_ROWS] >> (8*i))& 0xFF;
+			payload[3+i] = (romManager.table.data[transferRow] >> (8*i)) & 0xFF;
+			payload[7+i] = (romManager.table.data[(transferRow + 1) % MAX_ROWS] >> (8*i)) & 0xFF;
 		}
 		
 		d("");
@@ -206,7 +154,6 @@ void sendROMResponse() {
 		SimbleeCOM.send(payload, sizeof(payload));
 		transferRow += 2;
 	}
-	transferROM = false;
 	Serial.println("Transferred Page " + String(transferPage));
 }
 

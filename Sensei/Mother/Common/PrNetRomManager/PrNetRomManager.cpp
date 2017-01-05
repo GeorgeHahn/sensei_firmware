@@ -15,13 +15,13 @@ PrNetRomManager::PrNetRomManager() {
 void PrNetRomManager::printPage(int page) {
 	data *p = (data*) ADDRESS_OF_PAGE(page);
 	for (int i = 0; i < MAX_ROWS; i++) {
-		if ((p -> data[i]) == 0xFFFFFFFF) {
+		if ((p->data[i]) == 0xFFFFFFFF) {
 			
 		} else {
 			PrintHexByte(page);
 			PrintHexByte(i);
 			Serial.print(": ");
-			PrintHexInt(p -> data[i]);
+			PrintHexInt(p->data[i]);
 			Serial.println();
 		}
 	}
@@ -31,7 +31,7 @@ void PrNetRomManager::printROM() {
   for (int i = STORAGE_FLASH_PAGE; i >= LAST_STORAGE_PAGE; i--) {
     printPage(i);
     data *p = (data*) ADDRESS_OF_PAGE(i);
-    if ((p -> data[0]) == -1) {
+    if ((p->data[0]) == -1) {
       //break;
     }
   }
@@ -41,7 +41,7 @@ void PrNetRomManager::printROM() {
 void PrNetRomManager::loadPage(int page) {
   data *p = (data*) ADDRESS_OF_PAGE(page);
   for (int i = 0; i < MAX_ROWS; i++) {
-    table.data[i] = p -> data[i];
+    table.data[i] = p->data[i];
   }
   loadedPage = page;
 }
@@ -55,15 +55,6 @@ void PrNetRomManager::eraseROM() {
     erasePage(i);
   }
   Serial.println("Erased ROM");
-}
-
-/*
- *  Clears the transfer data array
- */
-void PrNetRomManager::clearTransferredData() {
-  for (int i = 0; i < MAX_ROWS; i++) {
-    transferredData.data[i] = 0;
-  }
 }
 
 int PrNetRomManager::writePage(int page, struct data values) {
@@ -83,8 +74,8 @@ int PrNetRomManager::writePage(int page, struct data values) {
 
 void PrNetRomManager::loadConfig() {
   prnetConfig *p = (prnetConfig*) ADDRESS_OF_PAGE(SETTINGS_FLASH_PAGE);
-  config.pageCounter = p -> pageCounter;
-  config.rowCounter = p -> rowCounter;
+  config.pageCounter = p->pageCounter;
+  config.rowCounter = p->rowCounter;
 }
 
 int PrNetRomManager::updateConfig() {
@@ -93,16 +84,23 @@ int PrNetRomManager::updateConfig() {
   return flashWriteBlock(p, &config, sizeof(config));
 }
 
+void PrNetRomManager::SetDeviceID(uint8_t newID) {
+  config.deviceID = newID;
+  updateConfig();
+}
+
 void PrNetRomManager::resetConfig() {
   config.pageCounter = STORAGE_FLASH_PAGE;
   config.rowCounter = 0;
+  config.deviceID = 0;
   updateConfig();
   Serial.println("Reset ROM Configuration");
 }
 
 void PrNetRomManager::printConfig() {
-  Serial.println(SETTINGS_FLASH_PAGE);
+  Serial.print("SETTINGS_FLASH_PAGE: "); Serial.println(SETTINGS_FLASH_PAGE);
   prnetConfig *p = (prnetConfig*) ADDRESS_OF_PAGE(SETTINGS_FLASH_PAGE);
-  Serial.println(p -> pageCounter);
-  Serial.println(p -> rowCounter);
+  Serial.print("pageCounter: "); Serial.println(p->pageCounter);
+  Serial.print("rowCounter: "); Serial.println(p->rowCounter);
+  Serial.print("deviceID: "); Serial.println(p->deviceID);
 }

@@ -24,13 +24,10 @@
 extern PrNetRomManager romManager;
 
 // Data transfer protocol state variables
-extern bool transferROM;
-extern int transferDevice;
 extern int transferPage;
 extern int transferRow;
 extern bool transferPageSuccess;
 extern bool lastPage;
-extern bool erase;
 
 extern unsigned long lastTransferTime;
 extern unsigned long dataTransferTime;

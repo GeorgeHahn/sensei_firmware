@@ -12,7 +12,8 @@
 #define SETTINGS_FLASH_PAGE   251
 #define STORAGE_FLASH_PAGE    250
 #define LAST_STORAGE_PAGE     124
-#define MAX_ROWS              240   // We can hold 240 rows of 4 bytes data to be under 1K page memory
+// We can hold 240 rows of 4 bytes data to be under 1K page memory
+#define MAX_ROWS              240
 
 struct data {
   unsigned int data[MAX_ROWS];
@@ -21,12 +22,12 @@ struct data {
 struct prnetConfig {
   int pageCounter = STORAGE_FLASH_PAGE;
   int rowCounter = 0;
+  uint8_t deviceID = 0;
 };
 
 class PrNetRomManager {
   public:
     struct data table;
-    struct data transferredData;
     struct prnetConfig config;
     int loadedPage;
     PrNetRomManager();
@@ -35,9 +36,9 @@ class PrNetRomManager {
     void loadPage(int page);
     int erasePage(int page);
     void eraseROM();
-    void clearTransferredData();
     int writePage(int page, struct data values);
     void loadConfig();
+    void SetDeviceID(uint8_t newID);
     int updateConfig();
     void resetConfig();
     void printConfig();

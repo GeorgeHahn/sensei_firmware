@@ -11,8 +11,14 @@
 #define MINUTES_BETWEEN_SYNC	20
 
 // Radio commands
-#define COMMAND_SHARED_TIME 254
-#define COMMAND_RESPONSE_ROWS 255
+#define RADIO_PROX_PING 1
+#define RADIO_SHARED_TIME 2
+#define RADIO_REQUEST_FULL 3
+#define RADIO_REQUEST_PARTIAL 4
+#define RADIO_RESPONSE_ROWS 5
+#define RADIO_RESPONSE_COMPLETE 6
+#define RADIO_REQUEST_ERASE 7
+#define RADIO_RQUEST_SLEEP 8
 
 // RSSI total and count for each device
 extern int rssiTotal[];
@@ -30,5 +36,6 @@ extern unsigned long discoveryTime;
 
 void startBroadcast();
 void stopBroadcast();
-uint8_t getDeviceIndex(uint32_t esn);
-uint16_t getDeviceUid(uint32_t esn);
+
+void RequestPartialData(uint8_t transferDevice, uint8_t row, uint8_t length);
+void RequestFullData(uint8_t transferDevice);

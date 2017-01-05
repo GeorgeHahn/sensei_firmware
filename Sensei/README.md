@@ -50,9 +50,10 @@ Response:
 
 Binary data
 
-{pageID, len, data} xN
+{pageID, row, data} xN
 pageID: [one byte] the flash page being transfered
-len: [one byte] length of data in bytes / 8
+row: [one byte] the flash row being transfered
+data: 13 bytes of data
 
 [Repeated xN for all non-empty flash pages]
 

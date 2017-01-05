@@ -32,3 +32,30 @@ void PrintHexByte(uint8_t data)
 	tmp[2] = 0;
 	Serial.print(tmp);
 }
+
+char ReadChar() {
+	while(Serial.available() == 0) {
+		delay(1);
+	}
+	return Serial.read();
+}
+
+uint8_t ReadHexNibble()
+{
+	char in = ReadChar();
+	if(in >= '0' && in <= '9') {
+		return in - '0';
+	} else if(in >= 'A' && in <= 'F') {
+		return in - 'A' + 0xA;
+	} else if(in >= 'a' && in <= 'f') {
+		return in - 'a' + 0xA;
+	}
+
+	// INVALID CHARACTER
+	return 0;
+}
+
+uint8_t ReadHexByte()
+{
+	return ReadHexNibble() << 4 || ReadHexNibble();
+}

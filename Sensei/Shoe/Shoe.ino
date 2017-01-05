@@ -62,14 +62,9 @@ void setupSensor() {
 	stopInterrupt();
 	startBroadcast();
 	while (!timer.isTimeSet) {
-		if (transferROM) {
-			sendROMResponse();
-		} else if (erase) {
-			remoteEraseROM();
-		}
 		delay(5);
-		
 		InterpretCommand();
+
 		acknowledgeTimeReceipt();
 	}
 	if (!USE_SERIAL_MONITOR) {
@@ -125,42 +120,34 @@ int RTC_Interrupt(uint32_t ulPin) {
 }
 
 void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi) {
-	dn("Msg "); dn(len); dn(" "); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
+	dn("Msg "); dn(len); dn(" "); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintByteDebug(payload[i]); d("");
 	
-	uint8_t command = (len > 0) ? payload[0] : COMMAND_DUMMY_PROX;
+	if(len < 2) {
+		dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintByteDebug(payload[i]); d("");
+		return;
+	}
+
+	uint8_t command = payload[0];
+	uint8_t id = payload[1];
 	
-	// Over the air protocol:
-	// Byte 0:
-	// 0: 
-	// 1-50: Is a proximity beacon
-	// 255 down: Is a packet
-	if(command == 0) {
-		d("Data transfer");
-		erase = ((int) payload[1] == (char) -1) && ((int) payload[2] == (char) -1);
-		transferROM = ((int) payload[1] != (char) -1) && ((int) payload[2] != (char) -1);
-		transferPage = transferROM ? (int) payload[1] : transferPage;
-		transferRow = transferROM ? (int) payload[2] : transferRow;
-		if (romManager.loadedPage != transferPage && 
-			transferPage >= LAST_STORAGE_PAGE) {
-			romManager.loadPage(transferPage);
-		}
-	} else if(command < 50) {
-		// Proximity beacon
-		// 0xID
-		
-	} else switch(command) {
-		case COMMAND_DUMMY_PROX:
+	// Over the air protocol, bytes:
+	// 0: Command
+	// 1: Device ID, if applicable
+	// n: Data
+	switch(command) {
+		case RADIO_PROX_PING:
+			// Proximity beacon
 			// Recording RSSI data
-			uint8_t index = getDeviceIndex(esn);
-			dn("Device online: "); dn(esn); dn(" RSSI "); dn(rssi); d(index);
+			dn("Device online: "); dn(id); dn(" RSSI "); dn(rssi);
 			
 			if(timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
-				rssiTotal[index] += rssi;
-				rssiCount[index]++;
+				rssiTotal[id] += rssi;
+				rssiCount[id]++;
 				newData = true;
 			}
 			break;
-		case COMMAND_SHARED_TIME:
+
+		case RADIO_SHARED_TIME:
 			// Time sharing
 			d("Time received");
 			timer.setInitialTime((int) payload[1], (int) payload[2], (int) payload[3], (int) payload[4],(int) payload[5], (int) payload[6], (int) payload[7]);
@@ -168,10 +155,34 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 			timer.secondsElapsed = 1;
 			setRTCTime();
 			startInterrupt();
-		case COMMAND_RESPONSE_ROWS:
+			break;
+
+		case RADIO_REQUEST_FULL:
+			d("Data transfer");
+			// Send out entire flash
+			if (romManager.loadedPage != transferPage && 
+				transferPage >= LAST_STORAGE_PAGE) {
+				romManager.loadPage(transferPage);
+			}
+			sendROMResponse();
+			break;
+		case RADIO_REQUEST_PARTIAL:
+			transferPage = (uint8_t) payload[1];
+			transferRow = (uint8_t) payload[2];
+			// length
+			break;
+		case RADIO_REQUEST_ERASE:
+			remoteEraseROM();
+			break;
+		case RADIO_RQUEST_SLEEP:
+			break;
+
+		// Ignore other devices' responses
+		case RADIO_RESPONSE_ROWS:
+		case RADIO_RESPONSE_COMPLETE:
 			break;
 		default:
-			dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
+			dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintByteDebug(payload[i]); d("");
 			break;
 	}
 }
@@ -189,13 +200,11 @@ void acknowledgeTimeReceipt() {
  * Synchonrizes the node's time with the RTC time
  */
 void synchronizeTime() {
-	if (RTC_FLAG
-) {
+	if (RTC_FLAG) {
 		DS3231_get(&rtcTime);
 		timer.setInitialTime(rtcTime.mon, rtcTime.mday, rtcTime.year_s,
 							rtcTime.wday, rtcTime.hour, rtcTime.min, rtcTime.sec);
-		RTC_FLAG
-	 = false;
+		RTC_FLAG = false;
 		Serial.print("RTC Time: ");
 		timer.displayDateTime();
 	}

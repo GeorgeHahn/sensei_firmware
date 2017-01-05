@@ -9,6 +9,8 @@
 void InterpretCommand()
 {
 	char ch;
+
+	// Don't block
 	if(Serial.available() == 0)
 		return;
 	
@@ -18,8 +20,8 @@ void InterpretCommand()
 	if (ch == 'T' || ch == 't') {
 		programSystemTime();
 	} else if (ch == 'I' || ch == 'i') {
-		Serial.println(SimbleeCOM.getESN(), HEX);
-		Serial.println(getDeviceUid(SimbleeCOM.getESN()), HEX);
+		//Serial.println(SimbleeCOM.getESN(), HEX);
+		Serial.println(romManager.config.deviceID, HEX);
 	} else if (ch == 'P' || ch == 'p') {
 		romManager.printROM();
 	} else if (ch == 'E' || ch == 'e') {
@@ -28,7 +30,8 @@ void InterpretCommand()
 		#ifdef MOTHER_NODE
 		if (ch == 'D' || ch == 'd') {
 			// Request all pages
-			parseROMRequest();
+			uint8_t id = ReadHexByte();
+			sendROMRequest(id);
 		} else if(ch == 'S' || ch == 's') {
 			// Request single page
 			parseROMRequest();
@@ -37,7 +40,7 @@ void InterpretCommand()
 			
 		} else if (ch == 'Z' || ch == 'z') {
 			// Program device ID
-			
+			romManager.SetDeviceID(ReadHexByte());
 		} else if (ch == 'O' || ch == 'o') {
 			// Print list of online devices
 			printOnlineDevices();

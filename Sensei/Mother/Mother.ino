@@ -34,6 +34,7 @@ void setup() {
 	
 	d("");
 	d("Mother node");
+	d(romManager.config.deviceID);
 	
 	stopInterrupt();
 	startBroadcast();
@@ -67,82 +68,59 @@ int RTC_Interrupt(uint32_t ulPin) {
 }
 
 void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi) {
-	dn("Msg "); dn(len); dn(" "); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
+	dn("Msg "); dn(len); dn(" "); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintByteDebug(payload[i]); d("");
 	
-	uint8_t command = payload[0];
-	
-	// Over the air protocol:
-	// Byte 0:
-	//	0: 
-	//	1-50: Is a proximity beacon
-	//	255 down: Is a packet
-	if(command == 0) {
-		
-	} else if(command < 50) {
-		// Proximity beacon
-		dn("Device online: "); d(esn);
+	if(len < 2) {
+		dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintByteDebug(payload[i]); d("");
+		return;
+	}
 
-		// Mother node online device tracking
-		deviceOnlineTime[getDeviceIndex(esn)] = millis();
-	} else switch(command) {
-		case COMMAND_SHARED_TIME:
+	uint8_t command = payload[0];
+	uint8_t id = payload[1];
+	
+	// Over the air protocol, bytes:
+	// 0: Command
+	// 1: Device ID, if applicable
+	// n: Data
+	switch(command) {
+		case RADIO_PROX_PING:
+			// Proximity beacon
+			dn("Device online: "); d(id);
+
+			// Mother node online device tracking
+			deviceOnlineTime[id] = millis();
 			break;
-		case COMMAND_RESPONSE_ROWS:
-			if(command == transferDevice) {
-				if(len == 2) {
-					d("Last page");
-					lastPage = true;
-					lastTransferTime = millis();
-				} else if(len == 3) {
-					d("transferROM");
-					transferROM = (((int) payload[1] != (char) -1) || ((int) payload[2] != (char) -1));
-				}
-			}
-			break;
-		default:
-			dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintHexByte(payload[i]); d("");
-			break;
-			
-		// TODO: transfer protocol
-			/* 
-		if(command == transferDevice) {
-			if(len == 2) {
-				d("Last page");
-				lastPage = true;
-				lastTransferTime = millis();
-			} else if(len == 3) {
-				d("transferROM");
-				transferROM = (((int) payload[1] != (char) -1) || ((int) payload[2] != (char) -1));
-			}
-		}
-		// ?
-		if(transferROM && len == 13) {
+
+		case RADIO_RESPONSE_ROWS:
+		// Bytes
+		//  Page
+		//  Row
+		//  Data[]
+
 			dn("Got line from: "); d(command);
-			if (transferPage == (int) payload[1] &&
-					(romManager.transferredData.data[(int) payload[2]] == 0 && 
-					romManager.transferredData.data[((int) payload[2] + 1) % MAX_ROWS] == 0) &&
-					(int) payload[2] == transferRow) {
-				transferRow = ((int) payload[2] + 2) % MAX_ROWS;
-				transferPageSuccess = (int) payload[2] == MAX_ROWS - 2;
-				lastTransferTime = !transferPageSuccess ? millis() : lastTransferTime;
-				dataTransferTime = !transferPageSuccess ? millis() : dataTransferTime;
-				romManager.transferredData.data[(int) payload[2]] = (int) payload[3] * 100000000 + 
-												(int) payload[4] * 1000000 + (int) payload[5] * 10000 + 
-												(int) payload[6] * 100 + (int) payload[7] * 1;
-				romManager.transferredData.data[((int) payload[2] + 1) % MAX_ROWS] = (int) payload[8] * 100000000 + 
-												(int) payload[9] * 1000000 + (int) payload[10] * 10000 + 
-												(int) payload[11] * 100 + (int) payload[12] * 1;
-				Serial.println(String((int) payload[0]) + '\t' +
-										String((int) payload[1]) + '\t' +
-										String((int) payload[2]) + '\t' +
-										(((romManager.transferredData.data[(int) payload[2]]) == (int) -1) ? "-1" : String(romManager.transferredData.data[(int) payload[2]])));
-				Serial.println(String((int) payload[0]) + '\t' +
-											 String((int) payload[1]) + '\t' +
-											 String((((int) payload[2]) + 1) % MAX_ROWS) + '\t' +
-											 (((romManager.transferredData.data[(((int) payload[2]) + 1) % MAX_ROWS]) == (int) -1) ? "-1" : String(romManager.transferredData.data[(((int) payload[2]) + 1) % MAX_ROWS])));
+			lastTransferTime = !transferPageSuccess ? millis() : lastTransferTime;
+			dataTransferTime = !transferPageSuccess ? millis() : dataTransferTime;
+			for(int i = 0; i < len; i++) {
+				// Hex in debug mode; binary in release mode
+				PrintByte(payload[i]);
 			}
-		}
-		*/
+			break;
+
+		case RADIO_RESPONSE_COMPLETE:
+			break;
+
+
+		// Mother doesn't care about these packets
+		case RADIO_SHARED_TIME:
+		case RADIO_REQUEST_FULL:
+		case RADIO_REQUEST_PARTIAL:
+		case RADIO_REQUEST_ERASE:
+		case RADIO_RQUEST_SLEEP:
+			break;
+
+		default:
+			dn("Invalid payload"); dn(esn); dn("("); dn(rssi); dn(") "); for(int i = 0; i < len; i++) PrintByteDebug(payload[i]); d("");
+			break;
 	}
 }
 
@@ -159,7 +137,7 @@ void synchronizeTime() {
 	DS3231_get(&rtcTime);
 	timer.setInitialTime(rtcTime.mon, rtcTime.mday, rtcTime.year_s,
 						rtcTime.wday, rtcTime.hour, rtcTime.min, rtcTime.sec);
-	Serial.print("RTC Time: ");
+	d("RTC Time: ");
 	timer.displayDateTime();
 	
 	// TODO: Sync RTC time flag
