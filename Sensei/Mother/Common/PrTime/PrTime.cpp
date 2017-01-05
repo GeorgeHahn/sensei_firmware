@@ -98,20 +98,22 @@ bool Time::inDataCollectionPeriod(int startHour, int startMinute, int endHour, i
  * Prints date and time representation of the current time
  */
 void Time::displayDateTime() {
-  updateTime();
-  if (isTimeSet) {
-    Serial.print(t.month);
-    Serial.print("/");
-    Serial.print(t.date);
-    Serial.print("/");
-    Serial.print(t.year);
-    Serial.print(" ");
-    Serial.print(t.day);
-    Serial.print(" ");
-  	Serial.print(t.hours);
-  	Serial.print(":");
-  	Serial.print(t.minutes);
-  	Serial.print(":");
-  	Serial.println(t.seconds);
-  }
+	updateTime();
+	if (isTimeSet) {
+		Serial.print(t.month);
+		Serial.print("/");
+		Serial.print(t.date);
+		Serial.print("/");
+		Serial.print(t.year);
+		Serial.print(" ");
+		Serial.print(t.day);
+		Serial.print(" ");
+		Serial.print(t.hours);
+		Serial.print(":");
+		Serial.print(t.minutes);
+		Serial.print(":");
+		Serial.println(t.seconds);
+	} else {
+		Serial.println("Time not set");
+	}
 }
