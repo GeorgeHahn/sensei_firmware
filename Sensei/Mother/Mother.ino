@@ -52,10 +52,7 @@ void printOnlineDevices()
 {
     Serial.print("O" + String(":"));
     for (int i = 0; i < NETWORK_SIZE; i++) {
-        Serial.print(
-            String(millis() - deviceOnlineTime[i] < SECONDS_TO_TRACK * 1000 &&
-                   millis() > SECONDS_TO_TRACK * 1000) +
-            ",");
+        Serial.print(String(millis() - deviceOnlineTime[i] < SECONDS_TO_TRACK * 1000 && millis() > SECONDS_TO_TRACK * 1000) + ",");
     }
     Serial.println();
 }
@@ -66,8 +63,7 @@ int RTC_Interrupt(uint32_t ulPin)
     return 0;
 }
 
-void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len,
-                          int rssi)
+void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi)
 {
     dn("Msg ");
     dn(len);
@@ -145,8 +141,9 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len,
         dn("(");
         dn(rssi);
         dn(") ");
-        for (int i = 0; i < len; i++)
+        for (int i = 0; i < len; i++) {
             PrintByteDebug(payload[i]);
+        }
         d("");
         break;
     }

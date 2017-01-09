@@ -20,10 +20,7 @@ uint16_t GetTime()
     // Fetch latest time from the timer
     timer.updateTime();
 
-    return (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 +
-             timer.t.seconds) /
-            10) &&
-           0x1FFF;
+    return (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10) && 0x1FFF;
 }
 
 /*
@@ -78,7 +75,6 @@ void writeDataRow(uint8_t data)
                 romManager.CheckPageSpace();
                 if (romManager.OutOfSpace()) {
                     return;
-                    ã
                 }
 
                 // Convert rssiAverage to positive

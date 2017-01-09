@@ -30,12 +30,9 @@ void PrNetRomManager::printPage(int page)
 {
     data *p = (data *)ADDRESS_OF_PAGE(page);
     for (int i = 0; i < MAX_ROWS; i++) {
-        if ((p->data[i]) == 0xFFFFFFFF)
-            ã
-            {
-                // Don't print empty rows
-            }
-        else {
+        if ((p->data[i]) == 0xFFFFFFFF) {
+            // Don't print empty rows
+        } else {
             PrintHexByte(page);
             PrintHexByte(i);
             Serial.print(": ");

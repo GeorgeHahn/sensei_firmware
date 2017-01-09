@@ -21,8 +21,7 @@
 //	Increase I2C speed to 400kHz
 //	Why are we including the DS3231 library if we're not using it?
 
-//	Lesson tracker & region tracker don't need to store data
-
+//	Lesson tracker & region tracker may be able to get away without storing any data
 bool RTC_FLAG = false;
 
 void setup()
@@ -81,6 +80,7 @@ void setupSensor()
     }
 }
 
+uint8_t ping_transmit_delay;
 void loop()
 {
     synchronizeTime();
@@ -94,15 +94,18 @@ void loop()
 
         timer.updateTime();
         startBroadcast();
-        delay(random(MS_SEND_DELAY_MIN, MS_SEND_DELAY_MAX));
+
+        ping_transmit_delay = random(MS_SEND_DELAY_MIN, MS_SEND_DELAY_MAX);
+        delay(ping_transmit_delay);
         SendPing();
-    } else {
+        delay(MS_TO_COLLECT - ping_transmit_delay);
+
         stopBroadcast();
         writeData();
 
         Simblee_ULPDelay(INFINITE);
         // TODO: Try Simblee_systemOff(); instead.
-        //   Much lower power usage, but no clue what the behavior is, if RAM is saved, or where execution goes after the pin callback
+        //   Much lower power usage, but no clue what the behavior is, if RAM is saved, or where execution goes after the pin callback. No docs.
     }
 }
 
@@ -120,8 +123,10 @@ int RTC_Interrupt(uint32_t ulPin)
     // Collect data every few seconds if we're in the data collection period
     collectData_count++;
     if (collectData_count > 10) {
-        collectData = timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE);
         collectData_count = 0;
+        if (timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
+            collectData = true;
+        }
     }
 
     // Update internal timer from RTC every few minutes
