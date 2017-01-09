@@ -1,6 +1,6 @@
-#define ACCEL_POWER_PIN			23
-#define X_PIN					4
-#define Z_PIN					6
+#define ACCEL_POWER_PIN 23
+#define X_PIN 4
+#define Z_PIN 6
 
 // TODO:
 // Y_PIN unrouted due to PCB layout, consider adding iter_swap

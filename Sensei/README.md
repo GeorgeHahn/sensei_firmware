@@ -5,6 +5,7 @@ Command: '?'
 
 Prints list of commands and short descriptions
 
+All responses are followed by a newline character (\n)
 
 ## Program system time:
 Command: 'T'
@@ -53,7 +54,7 @@ Binary data
 {pageID, row, data} xN
 pageID: [one byte] the flash page being transfered
 row: [one byte] the flash row being transfered
-data: 13 bytes of data
+data: 12 bytes of data
 
 [Repeated xN for all non-empty flash pages]
 

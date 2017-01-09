@@ -23,39 +23,43 @@ unsigned long discoveryTime;
 /*
  * Enables radio broadcasting
  */
-void startBroadcast() {
-	if(broadcasting) {
-		return;
-	}
-	
-	SimbleeCOM.begin();
-	broadcasting = true;
+void startBroadcast()
+{
+    if (broadcasting) {
+        return;
+    }
+
+    SimbleeCOM.begin();
+    broadcasting = true;
 }
 
 /*
  * Disables radio broadcasting
  */
-void stopBroadcast() {
-	if(!broadcasting) {
-		return;
-	}
-	
-	SimbleeCOM.end();
-	broadcasting = false;
+void stopBroadcast()
+{
+    if (!broadcasting) {
+        return;
+    }
+
+    SimbleeCOM.end();
+    broadcasting = false;
 }
 
 /*
  * Send request for ROM data to network nodes
  */
-void RequestFullData(uint8_t transferDevice) {
-	char payload[] = {RADIO_REQUEST_FULL, transferDevice};
-	SimbleeCOM.send(payload, sizeof(payload));
+void RequestFullData(uint8_t transferDevice)
+{
+    char payload[] = {RADIO_REQUEST_FULL, transferDevice};
+    SimbleeCOM.send(payload, sizeof(payload));
 }
 
 /*
  * Send request for ROM data to network nodes
  */
-void RequestPartialData(uint8_t transferDevice, uint8_t row, uint8_t length) {
-	char payload[] = {RADIO_REQUEST_PARTIAL, transferDevice, row, length};
-	SimbleeCOM.send(payload, sizeof(payload));
+void RequestPartialData(uint8_t transferDevice, uint8_t row, uint8_t length)
+{
+    char payload[] = {RADIO_REQUEST_PARTIAL, transferDevice, row, length};
+    SimbleeCOM.send(payload, sizeof(payload));
 }

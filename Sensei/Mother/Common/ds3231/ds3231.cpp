@@ -1,4 +1,3 @@
-
 /*
   DS3231 library for the Arduino.
 
@@ -37,15 +36,15 @@
 #include "ds3231.h"
 
 #ifdef __AVR__
- #include <avr/pgmspace.h>
- // Workaround for http://gcc.gnu.org/bugzilla/show_bug.cgi?id=34734
- #ifdef PROGMEM
-  #undef PROGMEM
-  #define PROGMEM __attribute__((section(".progmem.data")))
- #endif
+#include <avr/pgmspace.h>
+// Workaround for http://gcc.gnu.org/bugzilla/show_bug.cgi?id=34734
+#ifdef PROGMEM
+#undef PROGMEM
+#define PROGMEM __attribute__((section(".progmem.data")))
+#endif
 #else
- #define PROGMEM
- #define pgm_read_byte(addr) (*(const uint8_t *)(addr))
+#define PROGMEM
+#define pgm_read_byte(addr) (*(const uint8_t *)(addr))
 #endif
 
 /* control register 0Eh/8Eh
@@ -76,7 +75,7 @@ void DS3231_set(struct ts t)
         t.year_s = t.year - 1900;
     }
 
-    uint8_t TimeDate[7] = { t.sec, t.min, t.hour, t.wday, t.mday, t.mon, t.year_s };
+    uint8_t TimeDate[7] = {t.sec, t.min, t.hour, t.wday, t.mday, t.mon, t.year_s};
 
     Wire.beginTransmission(DS3231_I2C_ADDR);
     Wire.write(DS3231_TIME_CAL_ADDR);
@@ -91,7 +90,7 @@ void DS3231_set(struct ts t)
 
 void DS3231_get(struct ts *t)
 {
-    uint8_t TimeDate[7];        //second,minute,hour,dow,day,month,year
+    uint8_t TimeDate[7]; //second,minute,hour,dow,day,month,year
     uint8_t century = 0;
     uint8_t i, n;
     uint16_t year_full;
@@ -152,8 +151,6 @@ uint8_t DS3231_get_addr(const uint8_t addr)
     return rv;
 }
 
-
-
 // control register
 
 void DS3231_set_creg(const uint8_t val)
@@ -192,7 +189,7 @@ void DS3231_set_aging(const int8_t val)
     if (val >= 0)
         reg = val;
     else
-        reg = ~(-val) + 1;      // 2C
+        reg = ~(-val) + 1; // 2C
 
     DS3231_set_addr(DS3231_AGING_OFFSET_ADDR, reg);
 }
@@ -205,7 +202,7 @@ int8_t DS3231_get_aging(void)
     reg = DS3231_get_addr(DS3231_AGING_OFFSET_ADDR);
 
     if ((reg & 0x80) != 0)
-        rv = reg | ~((1 << 8) - 1);     // if negative get two's complement
+        rv = reg | ~((1 << 8) - 1); // if negative get two's complement
     else
         rv = reg;
 
@@ -229,7 +226,7 @@ float DS3231_get_treg()
     temp_lsb = Wire.read() >> 6;
 
     if ((temp_msb & 0x80) != 0)
-        nint = temp_msb | ~((1 << 8) - 1);      // if negative get two's complement
+        nint = temp_msb | ~((1 << 8) - 1); // if negative get two's complement
     else
         nint = temp_msb;
 
@@ -240,11 +237,11 @@ float DS3231_get_treg()
 
 // alarms
 
-// flags are: A1M1 (seconds), A1M2 (minutes), A1M3 (hour), 
+// flags are: A1M1 (seconds), A1M2 (minutes), A1M3 (hour),
 // A1M4 (day) 0 to enable, 1 to disable, DY/DT (dayofweek == 1/dayofmonth == 0)
-void DS3231_set_a1(const uint8_t s, const uint8_t mi, const uint8_t h, const uint8_t d, const uint8_t * flags)
+void DS3231_set_a1(const uint8_t s, const uint8_t mi, const uint8_t h, const uint8_t d, const uint8_t *flags)
 {
-    uint8_t t[4] = { s, mi, h, d };
+    uint8_t t[4] = {s, mi, h, d};
     uint8_t i;
 
     Wire.beginTransmission(DS3231_I2C_ADDR);
@@ -263,8 +260,8 @@ void DS3231_set_a1(const uint8_t s, const uint8_t mi, const uint8_t h, const uin
 void DS3231_get_a1(char *buf, const uint8_t len)
 {
     uint8_t n[4];
-    uint8_t t[4];               //second,minute,hour,day
-    uint8_t f[5];               // flags
+    uint8_t t[4]; //second,minute,hour,day
+    uint8_t f[5]; // flags
     uint8_t i;
 
     Wire.beginTransmission(DS3231_I2C_ADDR);
@@ -286,7 +283,6 @@ void DS3231_get_a1(char *buf, const uint8_t len)
              "s%02d m%02d h%02d d%02d fs%d m%d h%d d%d wm%d %d %d %d %d",
              t[0], t[1], t[2], t[3], f[0], f[1], f[2], f[3], f[4], n[0],
              n[1], n[2], n[3]);
-
 }
 
 // when the alarm flag is cleared the pulldown on INT is also released
@@ -300,13 +296,13 @@ void DS3231_clear_a1f(void)
 
 uint8_t DS3231_triggered_a1(void)
 {
-    return  DS3231_get_sreg() & DS3231_A1F;
+    return DS3231_get_sreg() & DS3231_A1F;
 }
 
-// flags are: A2M2 (minutes), A2M3 (hour), A2M4 (day) 0 to enable, 1 to disable, DY/DT (dayofweek == 1/dayofmonth == 0) - 
-void DS3231_set_a2(const uint8_t mi, const uint8_t h, const uint8_t d, const uint8_t * flags)
+// flags are: A2M2 (minutes), A2M3 (hour), A2M4 (day) 0 to enable, 1 to disable, DY/DT (dayofweek == 1/dayofmonth == 0) -
+void DS3231_set_a2(const uint8_t mi, const uint8_t h, const uint8_t d, const uint8_t *flags)
 {
-    uint8_t t[3] = { mi, h, d };
+    uint8_t t[3] = {mi, h, d};
     uint8_t i;
 
     Wire.beginTransmission(DS3231_I2C_ADDR);
@@ -325,8 +321,8 @@ void DS3231_set_a2(const uint8_t mi, const uint8_t h, const uint8_t d, const uin
 void DS3231_get_a2(char *buf, const uint8_t len)
 {
     uint8_t n[3];
-    uint8_t t[3];               //second,minute,hour,day
-    uint8_t f[4];               // flags
+    uint8_t t[3]; //second,minute,hour,day
+    uint8_t f[4]; // flags
     uint8_t i;
 
     Wire.beginTransmission(DS3231_I2C_ADDR);
@@ -346,7 +342,6 @@ void DS3231_get_a2(char *buf, const uint8_t len)
 
     snprintf(buf, len, "m%02d h%02d d%02d fm%d h%d d%d wm%d %d %d %d", t[0],
              t[1], t[2], f[0], f[1], f[2], f[3], n[0], n[1], n[2]);
-
 }
 
 // when the alarm flag is cleared the pulldown on INT is also released
@@ -360,13 +355,13 @@ void DS3231_clear_a2f(void)
 
 uint8_t DS3231_triggered_a2(void)
 {
-    return  DS3231_get_sreg() & DS3231_A2F;
+    return DS3231_get_sreg() & DS3231_A2F;
 }
 
 // helpers
 
 #ifdef CONFIG_UNIXTIME
-const uint8_t days_in_month [12] PROGMEM = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+const uint8_t days_in_month[12] PROGMEM = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 // returns the number of seconds since 01.01.1970 00:00:00 UTC, valid for 2000..FIXME
 uint32_t get_unixtime(struct ts t)
@@ -383,7 +378,7 @@ uint32_t get_unixtime(struct ts t)
     }
 
     d = t.mday - 1;
-    for (i=1; i<t.mon; i++) {
+    for (i = 1; i < t.mon; i++) {
         d += pgm_read_byte(days_in_month + i - 1);
     }
     if (t.mon > 2 && y % 4 == 0) {
@@ -412,4 +407,3 @@ uint8_t inp2toi(char *cmd, const uint16_t seek)
     rv = (cmd[seek] - 48) * 10 + cmd[seek + 1] - 48;
     return rv;
 }
-

@@ -9,23 +9,24 @@
 
 #include "Arduino.h"
 
-#define SETTINGS_FLASH_PAGE   251
-#define STORAGE_FLASH_PAGE    250
-#define LAST_STORAGE_PAGE     124
+#define SETTINGS_FLASH_PAGE 251
+#define STORAGE_FLASH_PAGE 250
+#define LAST_STORAGE_PAGE 124
 // We can hold 240 rows of 4 bytes data to be under 1K page memory
-#define MAX_ROWS              240
+#define MAX_ROWS 240
 
 struct data {
-  unsigned int data[MAX_ROWS];
+    unsigned int data[MAX_ROWS];
 };
 
 struct prnetConfig {
-  int pageCounter = STORAGE_FLASH_PAGE;
-  int rowCounter = 0;
-  uint8_t deviceID = 0;
+    int pageCounter = STORAGE_FLASH_PAGE;
+    int rowCounter = 0;
+    uint8_t deviceID = 0;
 };
 
-class PrNetRomManager {
+class PrNetRomManager
+{
   public:
     struct data table;
     struct prnetConfig config;
@@ -42,6 +43,9 @@ class PrNetRomManager {
     int updateConfig();
     void resetConfig();
     void printConfig();
+
+    bool OutOfSpace();
+    void CheckPageSpace();
 };
 
 #endif
