@@ -23,14 +23,11 @@
 
 extern PrNetRomManager romManager;
 
-// Data transfer protocol state variables
-extern int transferPage;
-extern int transferRow;
-
 uint16_t GetTime();
 void writeData();
 void writeDataRow(uint8_t data);
 void RequestROMFull(uint8_t id);
-void sendROMResponse();
+void sendROMPage(uint8_t page);
+void sendROM();
 void remoteEraseROM();
 void resetROM();

@@ -8,16 +8,12 @@
 // ROM Manager data structure
 PrNetRomManager romManager;
 
-// Data transfer protocol state variables
-int transferPage;
-int transferRow;
-
 /*
  * Time format: (total seconds since 5am)/10 (fits into 13 bits)
  */
 uint16_t GetTime()
 {
-    // Fetch latest time from the timer
+    // Update timer numbers
     timer.updateTime();
 
     return (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10) && 0x1FFF;
@@ -46,6 +42,16 @@ void writeData()
     }
 }
 
+
+/*
+ * Send request for ROM data to network nodes
+ */
+void RequestROMFull(uint8_t id) {
+	char payload[] = {RADIO_REQUEST_FULL, id};
+	SimbleeCOM.send(payload, sizeof(payload));
+	Serial.println("D," + String(transferDevice) + "," + String(timedOut));
+}
+
 /*
  * Stores timestamp OR
  * Stores x and z accelerometer data OR
@@ -65,10 +71,8 @@ void writeDataRow(uint8_t data)
     if (data == ROW_PROX) {
         // Proximity event
         for (int i = 0; i < NETWORK_SIZE; i++) {
-            int rssiAverage =
-                (rssiCount[i] == 0) ? -128 : rssiTotal[i] / rssiCount[i];
-            Serial.println(String(i) + "\t" + String(i) + "\t" + String(i) + "\t" +
-                           String(rssiAverage) + "\t" + String(rssiCount[i]));
+            int rssiAverage = (rssiCount[i] == 0) ? -128 : rssiTotal[i] / rssiCount[i];
+            Serial.println(String(i) + "\t" + String(i) + "\t" + String(i) + "\t" + String(rssiAverage) + "\t" + String(rssiCount[i]));
 
             // If the average RSSI was strong enough, write a proximity event row
             if (rssiAverage > -100) {
@@ -83,12 +87,11 @@ void writeDataRow(uint8_t data)
                 // Write a row for this proximity event
                 // 0b1, Time (13 bits), rssi (7 bits), unused (3 bits), ID (8 bits)
                 // 0b1TTTTTTTTTTTTTRRRRRRRUUUIIIIIIII
-                romManager.table.data[romManager.config.rowCounter] =
-                    DATA_ROW_HEADER |          // 0b1...
-                    GetTime() & 0x1FFF << 18 | // Time mask: 0x7FFC0000
-                    rssiAverage & 0x7F << 11 | // RSSI mask: 0x0003F800
-                    // Bits 8, 9, 10 are free
-                    i & 0xFF; // Device ID mask: 0x000000FF
+                romManager.table.data[romManager.config.rowCounter] = DATA_ROW_HEADER |          // 0b1...
+                                                                    GetTime() & 0x1FFF << 18 | // Time mask: 0x7FFC0000
+                                                                    rssiAverage & 0x7F << 11 | // RSSI mask: 0x0003F800
+                                                                    // Bits 8, 9, 10 are free
+                                                                    i & 0xFF; // Device ID mask: 0x000000FF
                 romManager.config.rowCounter++;
             }
 
@@ -102,15 +105,13 @@ void writeDataRow(uint8_t data)
 
     if (data == ROW_TIME) {
         timer.updateTime();
-        romManager.table.data[romManager.config.rowCounter] =
-            TIME_ROW_HEADER | GetTime();
+        romManager.table.data[romManager.config.rowCounter] = TIME_ROW_HEADER | GetTime();
     } else if (data == ROW_ACCEL) {
         // 30 bits
         // ZZZZZZZZZZZZZZZXXXXXXXXXXXXXXX
-        romManager.table.data[romManager.config.rowCounter] =
-            ACCEL_ROW_HEADER |
-            (min(xAccelerometerDiff / (10 * accelerometerCount), 0x7FFF)) |
-            (min(zAccelerometerDiff / (10 * accelerometerCount), 0x7FFF) << 15);
+        romManager.table.data[romManager.config.rowCounter] = ACCEL_ROW_HEADER |
+                                                            (min(xAccelerometerDiff / (10 * accelerometerCount), 0x7FFF)) |
+                                                            (min(zAccelerometerDiff / (10 * accelerometerCount), 0x7FFF) << 15);
     } else if (data == ROW_RESET) {
         romManager.table.data[romManager.config.rowCounter] = RESET_ROW_HEADER;
     }
@@ -119,10 +120,50 @@ void writeDataRow(uint8_t data)
 
 /*
  * Send response for ROM data to mother node
+	//  command
+	//  Page
+	//  Row
+	//  Data[]
  */
-void sendROMResponse()
+void sendROMPage(int pageNumber)
 {
-    // TODO REPLACE WITH OTHER VERSION
+    d("Transferring Page " + String(pageNumber));
+    data *p = (data *)ADDRESS_OF_PAGE(pageNumber);
+    int row = 0;
+    char payload[15];
+    while (row < MAX_ROWS) {
+        payload[0] = COMMAND_RESPONSE_ROWS; // 0; // TODO: This byte can be swapped out with some other data (but what?)
+        payload[1] = pageNumber;            // TODO Can these two be replaced by an incrementing counter?
+        payload[2] = row;
+        for (int i = 0; i < 4; i++) {
+            // Read next 3 ints and incrementally shift bytes into place
+            payload[3 + i] = (p->data[row] >> (8 * i)) & 0xFF;
+            if (row + 1 < MAX_ROWS) {
+                payload[7 + i] = (p->data[row + 1] >> (8 * i)) & 0xFF;
+            } else {
+                payload[7 + i] = 0;
+            }
+            if (row + 2 < MAX_ROWS) {
+                payload[11 + i] = (p->data[row + 2] >> (8 * i)) & 0xFF;
+            } else {
+                payload[11 + i] = 0;
+            }
+        }
+
+        SimbleeCOM.send(payload, sizeof(payload));
+        row += 3;
+    }
+    transferROM = false;
+    d("Transferred Page " + String(pageNumber));
+}
+
+void sendROM()
+{
+    // TODO send ROM page counter
+    for(int i = STORAGE_FLASH_PAGE; i <= config->pageCounter; i--) {
+        sendROMPage(i);
+    }
+    // TODO send ROM transfer complete message
 }
 
 /*
@@ -135,11 +176,9 @@ void remoteEraseROM()
 }
 
 /*
- * Erases ROM and resets ROM configuration if sensor is reprogrammed or write
- * ROM reset otherwise
+ * Write a ROM reset row
  */
 void resetROM()
 {
-    (romManager.config.pageCounter == -1) ? romManager.resetConfig()
-                                          : writeDataRow(ROW_RESET);
+    writeDataRow(ROW_RESET);
 }

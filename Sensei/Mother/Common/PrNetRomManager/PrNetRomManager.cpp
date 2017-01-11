@@ -18,11 +18,11 @@ bool PrNetRomManager::OutOfSpace()
 
 void PrNetRomManager::CheckPageSpace()
 {
-    if (romManager.config.rowCounter >= MAX_ROWS) {
-        romManager.writePage(romManager.config.pageCounter, romManager.table);
-        romManager.config.pageCounter--;
-        romManager.loadPage(romManager.config.pageCounter);
-        romManager.config.rowCounter = 0;
+    if (config.rowCounter >= MAX_ROWS) {
+        writePage(config.pageCounter, table);
+        config.pageCounter--;
+        loadPage(config.pageCounter);
+        config.rowCounter = 0;
     }
 }
 
@@ -61,9 +61,12 @@ void PrNetRomManager::loadPage(int page)
 
 int PrNetRomManager::erasePage(int page) { return flashPageErase(page); }
 
+/*
+ * Erases all flash data
+ */
 void PrNetRomManager::eraseROM()
 {
-    for (int i = SETTINGS_FLASH_PAGE - 1; i >= LAST_STORAGE_PAGE; i--) {
+    for (int i = STORAGE_FLASH_PAGE; i >= LAST_STORAGE_PAGE; i--) {
         erasePage(i);
     }
     config.pageCounter = STORAGE_FLASH_PAGE;
@@ -93,6 +96,7 @@ void PrNetRomManager::loadConfig()
     prnetConfig *p = (prnetConfig *)ADDRESS_OF_PAGE(SETTINGS_FLASH_PAGE);
     config.pageCounter = p->pageCounter;
     config.rowCounter = p->rowCounter;
+    config.deviceID = p->deviceID;
 }
 
 // Save current settings to flash

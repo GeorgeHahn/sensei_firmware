@@ -18,7 +18,8 @@
 #define RADIO_RESPONSE_ROWS 5
 #define RADIO_RESPONSE_COMPLETE 6
 #define RADIO_REQUEST_ERASE 7
-#define RADIO_RQUEST_SLEEP 8
+#define RADIO_REQUEST_SLEEP 8
+#define RADIO_ENTER_OTA_MODE 9
 
 // RSSI total and count for each device
 extern int rssiTotal[];

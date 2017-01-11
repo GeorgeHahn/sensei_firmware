@@ -27,11 +27,8 @@ bool RTC_FLAG = false;
 void setup()
 {
     pinMode(RTC_INTERRUPT_PIN, INPUT_PULLUP);
-    Simblee_pinWakeCallback(RTC_INTERRUPT_PIN, HIGH, RTC_Interrupt);
-
     SimbleeCOM.txPowerLevel = TX_POWER_LEVEL;
-
-    randomSeed(analogRead(UNUSED_ANALOG_PIN));
+    RandomSeed();
 
     Serial.setTimeout(5);
     enableSerialMonitor();
@@ -52,6 +49,9 @@ void setup()
     if (STUDENT_TRACKER || LESSON_TRACKER) {
         setupAccelerometer();
     }
+
+    Simblee_pinWakeCallback(RTC_INTERRUPT_PIN, HIGH, RTC_Interrupt);
+    startInterrupt();
 }
 
 void SendPing()
@@ -83,47 +83,20 @@ void setupSensor()
 uint8_t ping_transmit_delay;
 void loop()
 {
-    synchronizeTime();
-
-    if (collectData) {
-        if (!REGION_TRACKER) {
-            enableAccelerometer();
-            readAcc();
-            disableAccelerometer();
-        }
-
-        timer.updateTime();
-        startBroadcast();
-
-        ping_transmit_delay = random(MS_SEND_DELAY_MIN, MS_SEND_DELAY_MAX);
-        delay(ping_transmit_delay);
-        SendPing();
-        delay(MS_TO_COLLECT - ping_transmit_delay);
-
-        stopBroadcast();
-        writeData();
-
-        Simblee_ULPDelay(INFINITE);
-        // TODO: Try Simblee_systemOff(); instead.
-        //   Much lower power usage, but no clue what the behavior is, if RAM is saved, or where execution goes after the pin callback. No docs.
-    }
+    // All behavior is implemented in the RTC_Interrupt function
 }
 
-uint8_t collectData_count = 0;
 int RTC_Interrupt(uint32_t ulPin)
 {
     Simblee_resetPinWake(ulPin);
+    if (collectData) {
+        return 0; // We are already in this interrupt (TODO: Contact Simblee support; does Simblee support nested interrupts?)
+    }
 
-    timer.totalSecondsElapsed++;
-    timer.secondsElapsed++;
-
-    dn("Time: ");
-    timer.displayDateTime();
+    timer.NextSecond();
 
     // Collect data every few seconds if we're in the data collection period
-    collectData_count++;
-    if (collectData_count > 10) {
-        collectData_count = 0;
+    if (timer.t.seconds % 10 == 0) {
         if (timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
             collectData = true;
         }
@@ -135,6 +108,37 @@ int RTC_Interrupt(uint32_t ulPin)
                !timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
                    !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE) ||
                collectData;
+
+    // Moved out of main loop
+    if (collectData) {
+        collectData = false;
+        timer.updateTime();
+        synchronizeTime();
+        if (!REGION_TRACKER) {
+            enableAccelerometer();
+            readAcc();
+            disableAccelerometer();
+        }
+
+        startBroadcast();
+
+        ping_transmit_delay = random(MS_SEND_DELAY_MIN, MS_SEND_DELAY_MAX);
+        delay(ping_transmit_delay);
+        SendPing();
+        delay(MS_TO_COLLECT - ping_transmit_delay); // We're going to get hit with an interrupt here; not sure how it should be dealt with. Either the TODO comment above or below should handle it.
+
+        stopBroadcast();
+        writeData();
+    }
+
+    // Not sure if Simblee supports nested interrupts; clear the pin state incase an interrupt is queued after this one (other half of the TODO above)
+    Simblee_resetPinWake(ulPin);
+
+    //Simblee_ULPDelay(INFINITE);
+    Simblee_systemOff();
+    // TODO: Try Simblee_systemOff(); instead.
+    //   Much lower power usage, but no clue what the behavior is, if RAM is saved, or where execution goes after the pin callback. No docs.
+
     return 0;
 }
 
@@ -160,6 +164,11 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         for (int i = 0; i < len; i++)
             PrintByteDebug(payload[i]);
         d("");
+        return;
+    }
+
+    // The only 15B long messages are RADIO_RESPONSE_ROWS messages, which we should ignore
+    if (len == 15) {
         return;
     }
 
@@ -199,10 +208,17 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
     case RADIO_REQUEST_FULL:
         d("Data transfer");
+        if (id != romManager.config.deviceID) {
+            return;
+        }
+
         sendROMResponse();
         break;
 
     case RADIO_REQUEST_PARTIAL:
+        if (id != romManager.config.deviceID) {
+            return;
+        }
         transferPage = (uint8_t)payload[1];
         transferRow = (uint8_t)payload[2];
         //transferRowsLeft = (uint8_t) payload[3];
@@ -210,11 +226,29 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_REQUEST_ERASE:
+        if (id != romManager.config.deviceID) {
+            return;
+        }
         remoteEraseROM();
         break;
 
-    case RADIO_RQUEST_SLEEP:
+    case RADIO_REQUEST_SLEEP:
+        if (id != romManager.config.deviceID) {
+            return;
+        }
         // TODO: Go to sleep until tomorrow morning
+        break;
+
+    case RADIO_ENTER_OTA_MODE:
+        if (id != romManager.config.deviceID) {
+            return;
+        }
+
+        // WARNING: Simblee OTA stomps all over user flash pages
+        // See http://forum.rfduino.com/index.php?topic=1273.25
+        //
+        // Note: there are some reports that activity on pin 5 at boot can trigger OTA
+        //ota_bootloader_start();
         break;
 
     // Ignore other devices' responses

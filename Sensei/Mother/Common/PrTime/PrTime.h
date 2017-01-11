@@ -11,16 +11,17 @@
 
 // Time structure
 struct t {
-  int month;
-  int date;
-  int year;
-  int day;
-  int hours;
-  int minutes;
-  int seconds;
+    int month;
+    int date;
+    int year;
+    int day;
+    int hours;
+    int minutes;
+    int seconds;
 };
 
-class Time {
+class Time
+{
   public:
     struct t initialTime;
     struct t t;
@@ -33,6 +34,7 @@ class Time {
     bool timeout(unsigned long *counter, int milliseconds);
     bool inDataCollectionPeriod(int startHour, int startMinute, int endHour, int endMinute);
     void displayDateTime();
+    void NextSecond();
 };
 
 #endif

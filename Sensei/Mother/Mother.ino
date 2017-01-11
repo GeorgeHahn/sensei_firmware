@@ -26,7 +26,7 @@ void setup()
     pinMode(RTC_INTERRUPT_PIN, INPUT_PULLUP);
     Simblee_pinWakeCallback(RTC_INTERRUPT_PIN, HIGH, RTC_Interrupt);
     SimbleeCOM.txPowerLevel = 4;
-    randomSeed(analogRead(UNUSED_ANALOG_PIN));
+    RandomSeed();
     enableSerialMonitor();
 
     d("");
@@ -92,6 +92,18 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
     // SimbleeCOM max packet size is 15 bytes
 
+    if (len == 15) {
+        // TODO Print esn, this will help the app tie the rows messages together
+
+        // Parse as RADIO_RESPONSE_ROWS packet and return
+        for (int i = 0; i < len; i++) {
+            // Hex in debug mode; binary in release mode
+            PrintByte(payload[i]);
+        }
+        Serial.println();
+        return;
+    }
+
     uint8_t command = payload[0];
     uint8_t id = payload[1];
 
@@ -110,6 +122,8 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_RESPONSE_ROWS:
+        // Handled above; all 15B packets are interpreted as RADIO_RESPONSE_ROWS packets
+
         // Bytes
         //  command
         //  Page
@@ -117,11 +131,11 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         //  Data[]
 
         // Assumption: Only one shoe sensor is sending rows at once
-        for (int i = 1; i < len; i++) {
-            // Hex in debug mode; binary in release mode
-            PrintByte(payload[i]);
-        }
-        Serial.println();
+        // for (int i = 1; i < len; i++) {
+        //     // Hex in debug mode; binary in release mode
+        //     PrintByte(payload[i]);
+        // }
+        // Serial.println();
         break;
 
     case RADIO_RESPONSE_COMPLETE:

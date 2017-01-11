@@ -7,3 +7,5 @@
 #define END_MINUTE 0
 
 // Radio configuration is in radio_common.h
+
+void RandomSeed();

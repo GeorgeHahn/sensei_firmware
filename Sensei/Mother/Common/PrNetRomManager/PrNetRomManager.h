@@ -12,8 +12,7 @@
 #define SETTINGS_FLASH_PAGE 251
 #define STORAGE_FLASH_PAGE 250
 #define LAST_STORAGE_PAGE 124
-// We can hold 240 rows of 4 bytes data to be under 1K page memory
-#define MAX_ROWS 240
+#define MAX_ROWS 256
 
 struct data {
     unsigned int data[MAX_ROWS];
