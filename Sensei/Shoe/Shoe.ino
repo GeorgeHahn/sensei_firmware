@@ -22,8 +22,8 @@
 //	Why are we including the DS3231 library if we're not using it?
 
 //	Lesson tracker & region tracker may be able to get away without storing any data
-bool RTC_FLAG = false;
 
+volatile bool RTC_FLAG = false;
 void setup()
 {
     pinMode(RTC_INTERRUPT_PIN, INPUT_PULLUP);
@@ -83,33 +83,6 @@ void setupSensor()
 uint8_t ping_transmit_delay;
 void loop()
 {
-    // All behavior is implemented in the RTC_Interrupt function
-}
-
-int RTC_Interrupt(uint32_t ulPin)
-{
-    Simblee_resetPinWake(ulPin);
-    if (collectData) {
-        return 0; // We are already in this interrupt (TODO: Contact Simblee support; does Simblee support nested interrupts?)
-    }
-
-    timer.NextSecond();
-
-    // Collect data every few seconds if we're in the data collection period
-    if (timer.t.seconds % 10 == 0) {
-        if (timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
-            collectData = true;
-        }
-    }
-
-    // Update internal timer from RTC every few minutes
-    RTC_FLAG = (timer.secondsElapsed >= MINUTES_BETWEEN_SYNC * 60 &&
-                !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) ||
-               !timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
-                   !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE) ||
-               collectData;
-
-    // Moved out of main loop
     if (collectData) {
         collectData = false;
         timer.updateTime();
@@ -131,13 +104,29 @@ int RTC_Interrupt(uint32_t ulPin)
         writeData();
     }
 
-    // Not sure if Simblee supports nested interrupts; clear the pin state incase an interrupt is queued after this one (other half of the TODO above)
-    Simblee_resetPinWake(ulPin);
-
     //Simblee_ULPDelay(INFINITE);
     Simblee_systemOff();
-    // TODO: Try Simblee_systemOff(); instead.
-    //   Much lower power usage, but no clue what the behavior is, if RAM is saved, or where execution goes after the pin callback. No docs.
+}
+
+int RTC_Interrupt(uint32_t ulPin)
+{
+    Simblee_resetPinWake(ulPin);
+
+    timer.NextSecond();
+
+    // Collect data every few seconds if we're in the data collection period
+    if (timer.t.seconds % 10 == 0) {
+        if (timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
+            collectData = true;
+        }
+    }
+
+    // Update internal timer from RTC every ten seconds when we're in the data collection period
+    RTC_FLAG = (timer.secondsElapsed >= MINUTES_BETWEEN_SYNC * 60 &&
+                !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) ||
+               !timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
+                   !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE) ||
+               collectData;
 
     return 0;
 }

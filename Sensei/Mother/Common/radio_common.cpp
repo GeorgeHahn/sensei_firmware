@@ -16,7 +16,7 @@ bool broadcasting;
 // Boolean on whether received new data
 bool newData;
 // Boolean on whether to collect data
-bool collectData;
+volatile bool collectData;
 // Time acknowledgment variable
 unsigned long discoveryTime;
 
