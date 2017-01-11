@@ -31,7 +31,7 @@
    
 */
 
-#include <Wire.h>
+#include "..\Wire\Wire.h"
 #include <stdio.h>
 #include "ds3231.h"
 
@@ -79,7 +79,7 @@ void DS3231_set(struct ts t)
 
     Wire.beginTransmission(DS3231_I2C_ADDR);
     Wire.write(DS3231_TIME_CAL_ADDR);
-    for (i = 0; i <= 6; i++) {
+    for (i = 0; i < 7; i++) {
         TimeDate[i] = dectobcd(TimeDate[i]);
         if (i == 5)
             TimeDate[5] += century;

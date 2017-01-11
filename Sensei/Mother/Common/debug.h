@@ -9,8 +9,7 @@
 #else
 #define d(x)
 #define dn(x)
-#define PrintByteDebug(x) 
-
+#define PrintByteDebug(x)
 #define PrintByte(x) PrintBinaryByte(x)
 #define PrintInt(x) PrintBinaryInt(x)
 #endif

@@ -42,14 +42,14 @@ void writeData()
     }
 }
 
-
 /*
  * Send request for ROM data to network nodes
  */
-void RequestROMFull(uint8_t id) {
-	char payload[] = {RADIO_REQUEST_FULL, id};
-	SimbleeCOM.send(payload, sizeof(payload));
-	Serial.println("D," + String(transferDevice) + "," + String(timedOut));
+void RequestROMFull(uint8_t id)
+{
+    char payload[] = {RADIO_REQUEST_FULL, id};
+    SimbleeCOM.send(payload, sizeof(payload));
+    Serial.println("D " + String(id));
 }
 
 /*
@@ -88,10 +88,10 @@ void writeDataRow(uint8_t data)
                 // 0b1, Time (13 bits), rssi (7 bits), unused (3 bits), ID (8 bits)
                 // 0b1TTTTTTTTTTTTTRRRRRRRUUUIIIIIIII
                 romManager.table.data[romManager.config.rowCounter] = DATA_ROW_HEADER |          // 0b1...
-                                                                    GetTime() & 0x1FFF << 18 | // Time mask: 0x7FFC0000
-                                                                    rssiAverage & 0x7F << 11 | // RSSI mask: 0x0003F800
-                                                                    // Bits 8, 9, 10 are free
-                                                                    i & 0xFF; // Device ID mask: 0x000000FF
+                                                                      GetTime() & 0x1FFF << 18 | // Time mask: 0x7FFC0000
+                                                                      rssiAverage & 0x7F << 11 | // RSSI mask: 0x0003F800
+                                                                      // Bits 8, 9, 10 are free
+                                                                      i & 0xFF; // Device ID mask: 0x000000FF
                 romManager.config.rowCounter++;
             }
 
@@ -110,8 +110,8 @@ void writeDataRow(uint8_t data)
         // 30 bits
         // ZZZZZZZZZZZZZZZXXXXXXXXXXXXXXX
         romManager.table.data[romManager.config.rowCounter] = ACCEL_ROW_HEADER |
-                                                            (min(xAccelerometerDiff / (10 * accelerometerCount), 0x7FFF)) |
-                                                            (min(zAccelerometerDiff / (10 * accelerometerCount), 0x7FFF) << 15);
+                                                              (min(xAccelerometerDiff / (10 * accelerometerCount), 0x7FFF)) |
+                                                              (min(zAccelerometerDiff / (10 * accelerometerCount), 0x7FFF) << 15);
     } else if (data == ROW_RESET) {
         romManager.table.data[romManager.config.rowCounter] = RESET_ROW_HEADER;
     }
@@ -125,15 +125,19 @@ void writeDataRow(uint8_t data)
 	//  Row
 	//  Data[]
  */
-void sendROMPage(int pageNumber)
+void sendROMPage(uint8_t pageNumber)
 {
     d("Transferring Page " + String(pageNumber));
     data *p = (data *)ADDRESS_OF_PAGE(pageNumber);
     int row = 0;
     char payload[15];
+    bool success = false;
+
+    // Don't listen for packets while we're sending ROM
+    SimbleeCOM.stopReceive();
     while (row < MAX_ROWS) {
-        payload[0] = COMMAND_RESPONSE_ROWS; // 0; // TODO: This byte can be swapped out with some other data (but what?)
-        payload[1] = pageNumber;            // TODO Can these two be replaced by an incrementing counter?
+        payload[0] = RADIO_RESPONSE_ROWS; // 0; // TODO: This byte can be swapped out with some other data (but what?)
+        payload[1] = pageNumber;          // TODO Can these two be replaced by an incrementing counter?
         payload[2] = row;
         for (int i = 0; i < 4; i++) {
             // Read next 3 ints and incrementally shift bytes into place
@@ -150,17 +154,22 @@ void sendROMPage(int pageNumber)
             }
         }
 
-        SimbleeCOM.send(payload, sizeof(payload));
+        success = false;
+        while (!success) {
+            success = SimbleeCOM.send(payload, sizeof(payload));
+        }
         row += 3;
     }
-    transferROM = false;
+
+    // Start listening for packets again
+    SimbleeCOM.startReceive();
     d("Transferred Page " + String(pageNumber));
 }
 
 void sendROM()
 {
     // TODO send ROM page counter
-    for(int i = STORAGE_FLASH_PAGE; i <= config->pageCounter; i--) {
+    for (int i = STORAGE_FLASH_PAGE; i <= romManager.config.pageCounter; i--) {
         sendROMPage(i);
     }
     // TODO send ROM transfer complete message

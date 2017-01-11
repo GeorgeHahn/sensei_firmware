@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <SimbleeCOM.h>
+#include "command.h"
 #include "debug.h"
 #include "config.h"
 #include "rtc.h"
@@ -26,6 +27,9 @@ void InterpretCommand()
         romManager.printROM();
     } else if (ch == 'E' || ch == 'e') {
         romManager.eraseROM();
+    } else if (ch == 'Z' || ch == 'z') {
+        // Program device ID
+        romManager.SetDeviceID(ReadHexByte());
     } else
 #ifdef MOTHER_NODE
         if (ch == 'D' || ch == 'd') {
@@ -38,9 +42,6 @@ void InterpretCommand()
     } else if (ch == 'L' || ch == 'l') {
         // Tell sensor device to go to sleep
 
-    } else if (ch == 'Z' || ch == 'z') {
-        // Program device ID
-        romManager.SetDeviceID(ReadHexByte());
     } else if (ch == 'O' || ch == 'o') {
         // Print list of online devices
         printOnlineDevices();
@@ -54,29 +55,10 @@ void InterpretCommand()
         Serial.println("\tI: print device ID");
         Serial.println("\tP: print ROM");
         Serial.println("\tE: erase ROM");
+        Serial.println("\tZ: set device ID");
 #ifdef MOTHER_NODE
         Serial.println("\tD: sensor device ROM request");
         Serial.println("\tO: print online devices");
 #endif
-    }
-}
-
-/*
- * Enables the serial monitor
- */
-void enableSerialMonitor()
-{
-    if (USE_SERIAL_MONITOR) {
-        Serial.begin(BAUD_RATE);
-    }
-}
-
-/*
- * Disables the serial monitor
- */
-void disableSerialMonitor()
-{
-    if (USE_SERIAL_MONITOR) {
-        Serial.end();
     }
 }

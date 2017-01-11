@@ -2,7 +2,6 @@
 #include "PrTime\PrTime.h"
 
 #define RTC_INTERRUPT_PIN 10
-#define UNUSED_ANALOG_PIN 2
 
 #define DS3231_ADDR 0x68
 #define CTRL_REG 0x0E
@@ -16,9 +15,8 @@ extern struct ts rtcTime;
 extern int interruptTime;
 extern unsigned long ms;
 
-void setRTCTime();
-void startInterrupt();
-void stopInterrupt();
+void setRTCTime(int month, int date, int year, int day, int hours, int minutes, int seconds);
+void EnableRTCInterrupt();
+void DisableRTCInterrupt();
 
 void programSystemTime();
-void synchronizeTime();

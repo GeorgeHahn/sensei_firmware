@@ -21,6 +21,13 @@ void Time::setInitialTime(int month, int date, int year, int day, int hours, int
     initialTime.hours = hours;
     initialTime.minutes = minutes;
     initialTime.seconds = seconds;
+    t.month = month;
+    t.date = date;
+    t.year = year;
+    t.day = day;
+    t.hours = hours;
+    t.minutes = minutes;
+    t.seconds = seconds;
     secondsElapsed = 0;
     isTimeSet = true;
 }
@@ -136,7 +143,6 @@ bool Time::inDataCollectionPeriod(int startHour, int startMinute, int endHour, i
  */
 void Time::displayDateTime()
 {
-    updateTime();
     if (isTimeSet) {
         Serial.print(t.month);
         Serial.print("/");

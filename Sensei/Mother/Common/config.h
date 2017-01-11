@@ -1,4 +1,4 @@
-#define BAUD_RATE 250000
+#define BAUD_RATE 115200
 #define USE_SERIAL_MONITOR true
 
 #define START_HOUR 9 //? Wake at 9am

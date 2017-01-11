@@ -63,6 +63,8 @@ int PrNetRomManager::erasePage(int page) { return flashPageErase(page); }
 
 /*
  * Erases all flash data
+ * TODO: Can we just erase from pageCounter up to STORAGE_FLASH_PAGE? (Only erase used pages)
+ * TODO: Other option: Just reset pageCounter to 0 and erase pages before writing
  */
 void PrNetRomManager::eraseROM()
 {

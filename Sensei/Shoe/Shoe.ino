@@ -11,15 +11,13 @@
 #include "Common\command.h"
 
 #include <SimbleeCOM.h>
-#include <Wire.h>
+#include "Common\Wire\Wire.h"
 
 // TODO
 
 // TODO: If after 4pm, set an alarm for the next morning at 9am and sleep until then
 
 //	Use RTC alarm to wake up at the beginning of START_HOUR:START_MINUTE
-//	Increase I2C speed to 400kHz
-//	Why are we including the DS3231 library if we're not using it?
 
 //	Lesson tracker & region tracker may be able to get away without storing any data
 
@@ -29,10 +27,12 @@ void setup()
     pinMode(RTC_INTERRUPT_PIN, INPUT_PULLUP);
     SimbleeCOM.txPowerLevel = TX_POWER_LEVEL;
     RandomSeed();
+    Wire.speed = 400;
+    Wire.beginOnPins(14, 13);
 
-    Serial.setTimeout(5);
-    enableSerialMonitor();
+    Serial.begin(BAUD_RATE);
 
+    delay(500);
     d("");
     if (REGION_TRACKER) {
         d("Region tracker");
@@ -43,15 +43,30 @@ void setup()
     if (STUDENT_TRACKER) {
         d("Student sensor");
     }
+    d(romManager.config.deviceID);
 
-    setupSensor();
+    // Put a mark in ROM
+    resetROM();
+
+    d("Waiting for time");
+    startBroadcast();
+    while (!timer.isTimeSet) {
+        delay(5);
+        InterpretCommand();
+    }
+    stopBroadcast();
+    d("Time set.");
 
     if (STUDENT_TRACKER || LESSON_TRACKER) {
         setupAccelerometer();
     }
 
+    if (!USE_SERIAL_MONITOR) {
+        Serial.end();
+    }
+
+    EnableRTCInterrupt();
     Simblee_pinWakeCallback(RTC_INTERRUPT_PIN, HIGH, RTC_Interrupt);
-    startInterrupt();
 }
 
 void SendPing()
@@ -60,32 +75,12 @@ void SendPing()
     SimbleeCOM.send(payload, sizeof(payload));
 }
 
-/*
- * Interfaces with device to receive time or print ROM data
- */
-void setupSensor()
-{
-    Serial.begin(BAUD_RATE);
-    resetROM();
-    stopInterrupt();
-    startBroadcast();
-    while (!timer.isTimeSet) {
-        delay(5);
-        InterpretCommand();
-
-        acknowledgeTimeReceipt();
-    }
-    if (!USE_SERIAL_MONITOR) {
-        Serial.end();
-    }
-}
-
 uint8_t ping_transmit_delay;
 void loop()
 {
     if (collectData) {
         collectData = false;
-        timer.updateTime();
+        d("Collect");
         synchronizeTime();
         if (!REGION_TRACKER) {
             enableAccelerometer();
@@ -102,10 +97,13 @@ void loop()
 
         stopBroadcast();
         writeData();
+        d("Collected");
     }
 
-    //Simblee_ULPDelay(INFINITE);
-    Simblee_systemOff();
+    d("Off");
+    Serial.flush();
+    Simblee_ULPDelay(SECONDS(1));
+    //Simblee_systemOff();
 }
 
 int RTC_Interrupt(uint32_t ulPin)
@@ -128,21 +126,23 @@ int RTC_Interrupt(uint32_t ulPin)
                    !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE) ||
                collectData;
 
+    d("i");
+
     return 0;
 }
 
 void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi)
 {
-    dn("Msg ");
-    dn(len);
-    dn(" ");
-    dn(esn);
-    dn("(");
-    dn(rssi);
-    dn(") ");
-    for (int i = 0; i < len; i++)
-        PrintByteDebug(payload[i]);
-    d("");
+    // dn("Msg ");
+    // dn(len);
+    // dn(" ");
+    // dn(esn);
+    // dn("(");
+    // dn(rssi);
+    // dn(") ");
+    // for (int i = 0; i < len; i++)
+    //     PrintByteDebug(payload[i]);
+    // d("");
 
     if (len < 2) {
         dn("Invalid payload");
@@ -158,6 +158,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
     // The only 15B long messages are RADIO_RESPONSE_ROWS messages, which we should ignore
     if (len == 15) {
+        d("Ignoring 15B message");
         return;
     }
 
@@ -187,12 +188,16 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
     case RADIO_SHARED_TIME:
         // Time sharing
         d("Time received");
-        stopInterrupt();
-        timer.setInitialTime((int)payload[1], (int)payload[2], (int)payload[3], (int)payload[4], (int)payload[5], (int)payload[6], (int)payload[7]);
+        noInterrupts();
+        setRTCTime((int)payload[1], (int)payload[2], (int)payload[3], (int)payload[4], (int)payload[5], (int)payload[6], (int)payload[7]);
         timer.totalSecondsElapsed = 1;
         timer.secondsElapsed = 1;
-        setRTCTime();
-        startInterrupt();
+        RTC_FLAG = true;
+        synchronizeTime();
+
+        EnableRTCInterrupt();
+        interrupts();
+        d("Done");
         break;
 
     case RADIO_REQUEST_FULL:
@@ -201,17 +206,19 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             return;
         }
 
-        sendROMResponse();
+        sendROM();
         break;
 
     case RADIO_REQUEST_PARTIAL:
         if (id != romManager.config.deviceID) {
             return;
         }
-        transferPage = (uint8_t)payload[1];
-        transferRow = (uint8_t)payload[2];
+        //transferPage = (uint8_t)payload[1];
+        //transferRow = (uint8_t)payload[2];
         //transferRowsLeft = (uint8_t) payload[3];
         // length
+
+        sendROMPage((uint8_t)payload[1]);
         break;
 
     case RADIO_REQUEST_ERASE:
@@ -254,16 +261,6 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             PrintByteDebug(payload[i]);
         d("");
         break;
-    }
-}
-
-void acknowledgeTimeReceipt()
-{
-    discoveryTime = millis();
-    while (!timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
-           !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
-        delay(100);
-        synchronizeTime();
     }
 }
 

@@ -1,5 +1,6 @@
 #include "Arduino.h"
 #include "HardwareSerial.h"
+#include "..\debug.h"
 
 void PrintHexInt(uint32_t data)
 {
@@ -36,7 +37,9 @@ char ReadChar()
     while (Serial.available() == 0) {
         delay(1);
     }
-    return Serial.read();
+    char ret = Serial.read();
+    dn(ret);
+    return ret;
 }
 
 uint8_t ReadHexNibble()
@@ -51,10 +54,11 @@ uint8_t ReadHexNibble()
     }
 
     // INVALID CHARACTER
-    return 0;
+    return 0xFF;
 }
 
 uint8_t ReadHexByte()
 {
-    return ReadHexNibble() << 4 || ReadHexNibble();
+    uint8_t ret = ReadHexNibble() << 4 | ReadHexNibble();
+    return ret;
 }

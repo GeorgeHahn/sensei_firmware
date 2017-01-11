@@ -10,30 +10,29 @@
 #include "Common\accel.h"
 #include "Common\rom.h"
 #include "Common\command.h"
+#include "Common\Wire\Wire.h"
 
 #include <SimbleeCOM.h>
-#include <Wire.h>
 
-// TODO
-//	Use RTC alarm to wake up at the beginning of START_HOUR:START_MINUTE
-//	Increase I2C speed to 400kHz
-//	Why are we including the DS3231 library if we're not using it?
 unsigned long deviceOnlineTime[NETWORK_SIZE];
 bool RTC_FLAG = false;
 
 void setup()
 {
+    Serial.begin(BAUD_RATE);
     pinMode(RTC_INTERRUPT_PIN, INPUT_PULLUP);
     Simblee_pinWakeCallback(RTC_INTERRUPT_PIN, HIGH, RTC_Interrupt);
     SimbleeCOM.txPowerLevel = 4;
     RandomSeed();
-    enableSerialMonitor();
+    Wire.speed = 400;
+    Wire.beginOnPins(14, 13);
 
+    delay(1000);
     d("");
     d("Mother node");
     d(romManager.config.deviceID);
 
-    stopInterrupt();
+    DisableRTCInterrupt();
     startBroadcast();
 }
 
@@ -146,7 +145,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
     case RADIO_REQUEST_FULL:
     case RADIO_REQUEST_PARTIAL:
     case RADIO_REQUEST_ERASE:
-    case RADIO_RQUEST_SLEEP:
+    case RADIO_REQUEST_SLEEP:
         break;
 
     default:
@@ -179,10 +178,9 @@ void synchronizeTime()
     timer.setInitialTime(rtcTime.mon, rtcTime.mday, rtcTime.year_s,
                          rtcTime.wday, rtcTime.hour, rtcTime.min, rtcTime.sec);
 
-    char payload[] = {timer.t.month, timer.t.date, timer.t.year,
-                      timer.t.day, timer.t.hours, timer.t.minutes,
-                      timer.t.seconds};
-    SimbleeCOM.send(payload, sizeof(payload));
+    SendTime(timer.t.month, timer.t.date, timer.t.year,
+             timer.t.day, timer.t.hours, timer.t.minutes,
+             timer.t.seconds);
 
     d("Broadcast RTC Time: ");
     timer.displayDateTime();

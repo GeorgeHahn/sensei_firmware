@@ -14,7 +14,7 @@ int rssiCount[NETWORK_SIZE];
 bool broadcasting;
 
 // Boolean on whether received new data
-bool newData;
+volatile bool newData;
 // Boolean on whether to collect data
 volatile bool collectData;
 // Time acknowledgment variable
@@ -29,6 +29,7 @@ void startBroadcast()
         return;
     }
 
+    SimbleeCOM.mode = LOW_LATENCY;
     SimbleeCOM.begin();
     broadcasting = true;
 }
@@ -61,5 +62,11 @@ void RequestFullData(uint8_t transferDevice)
 void RequestPartialData(uint8_t transferDevice, uint8_t row, uint8_t length)
 {
     char payload[] = {RADIO_REQUEST_PARTIAL, transferDevice, row, length};
+    SimbleeCOM.send(payload, sizeof(payload));
+}
+
+void SendTime(uint8_t month, uint8_t date, uint8_t year, uint8_t day, uint8_t hours, uint8_t minutes, uint8_t seconds)
+{
+    char payload[] = {RADIO_SHARED_TIME, month, date, year, day, hours, minutes, seconds};
     SimbleeCOM.send(payload, sizeof(payload));
 }
