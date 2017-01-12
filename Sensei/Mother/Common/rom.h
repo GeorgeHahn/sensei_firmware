@@ -20,14 +20,3 @@
 #define RESERVED_ROW_HEADER 0x30000000 // 0b011... (29 bits)
 
 // TODO: Maybe record the full date when the time gets set?
-
-extern PrNetRomManager romManager;
-
-uint16_t GetTime();
-void writeData();
-void writeDataRow(uint8_t data);
-void RequestROMFull(uint8_t id);
-void sendROMPage(uint8_t page);
-void sendROM();
-void remoteEraseROM();
-void resetROM();

@@ -20,7 +20,9 @@ void InterpretCommand()
 
     if (ch == 'T' || ch == 't') {
         programSystemTime();
-    } else if (ch == 'I' || ch == 'i') {
+    } else
+#ifndef MOTHER_NODE
+        if (ch == 'I' || ch == 'i') {
         //Serial.println(SimbleeCOM.getESN(), HEX);
         Serial.println(romManager.config.deviceID, HEX);
     } else if (ch == 'P' || ch == 'p') {
@@ -31,6 +33,7 @@ void InterpretCommand()
         // Program device ID
         romManager.SetDeviceID(ReadHexByte());
     } else
+#endif
 #ifdef MOTHER_NODE
         if (ch == 'D' || ch == 'd') {
         // Request full flash dump
@@ -52,10 +55,12 @@ void InterpretCommand()
     } else {
         Serial.println("Available commands:");
         Serial.println("\tT: program system time");
+#ifndef MOTHER_NODE
         Serial.println("\tI: print device ID");
         Serial.println("\tP: print ROM");
         Serial.println("\tE: erase ROM");
         Serial.println("\tZ: set device ID");
+#endif
 #ifdef MOTHER_NODE
         Serial.println("\tD: sensor device ROM request");
         Serial.println("\tO: print online devices");

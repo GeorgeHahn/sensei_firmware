@@ -70,3 +70,9 @@ void SendTime(uint8_t month, uint8_t date, uint8_t year, uint8_t day, uint8_t ho
     char payload[] = {RADIO_SHARED_TIME, month, date, year, day, hours, minutes, seconds};
     SimbleeCOM.send(payload, sizeof(payload));
 }
+
+void RequestNextPage(uint8_t id)
+{
+    char payload[] = {RADIO_REQUEST_NEXT_PAGE, id};
+    SimbleeCOM.send(payload, sizeof(payload));
+}

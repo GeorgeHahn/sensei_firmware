@@ -37,7 +37,7 @@
 #define BUFFER_LENGTH 32
 
 // TODO Can probably remove this delay
-#define TWI_DELAY() delayMicroseconds(4); // Time to wait when pin states are changed. For fast-mode the delay can be zero and for standard-mode 4 us delay is sufficient
+#define TWI_DELAY() {}; //delayMicroseconds(4); // Time to wait when pin states are changed. For fast-mode the delay can be zero and for standard-mode 4 us delay is sufficient
 /* Max cycles approximately to wait on RXDREADY and TXDREADY event, this is optimum way instead of using timers, this is not power aware, negetive side is this is not power aware */
 #define MAX_TIMEOUT_LOOPS (10000UL) /*!< MAX while loops to wait for RXD/TXD event */
 

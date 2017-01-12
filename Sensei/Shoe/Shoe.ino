@@ -2,6 +2,7 @@
 #define LESSON_TRACKER false
 #define REGION_TRACKER false
 
+#include "config.h"
 #include "Common\debug.h"
 #include "Common\config.h"
 #include "Common\rtc.h"
@@ -12,6 +13,7 @@
 
 #include <SimbleeCOM.h>
 #include "Common\Wire\Wire.h"
+#include "shoe_rom.h"
 
 // TODO
 
@@ -100,7 +102,7 @@ void loop()
         d("Collected");
     }
 
-    d("Off");
+    dn("_");
     Serial.flush();
     Simblee_ULPDelay(SECONDS(1));
     //Simblee_systemOff();
@@ -126,7 +128,7 @@ int RTC_Interrupt(uint32_t ulPin)
                    !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE) ||
                collectData;
 
-    d("i");
+    dn("-");
 
     return 0;
 }
@@ -201,7 +203,8 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_REQUEST_FULL:
-        d("Data transfer");
+        dn("Data transfer");
+        d(id);
         if (id != romManager.config.deviceID) {
             return;
         }
@@ -245,6 +248,14 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         //
         // Note: there are some reports that activity on pin 5 at boot can trigger OTA
         //ota_bootloader_start();
+        break;
+
+    case RADIO_REQUEST_NEXT_PAGE:
+        if (id != romManager.config.deviceID) {
+            return;
+        }
+
+        ready_for_next_page = true;
         break;
 
     // Ignore other devices' responses

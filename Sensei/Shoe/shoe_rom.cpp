@@ -1,12 +1,17 @@
+#include "shoe_rom.h"
+
 #include <SimbleeCOM.h>
-#include "rom.h"
-#include "rtc.h"
-#include "accel.h"
-#include "radio_common.h"
-#include "debug.h"
+#include "Common\rom.h"
+#include "Common\rtc.h"
+#include "Common\accel.h"
+#include "Common\radio_common.h"
+#include "Common\debug.h"
+#include "heatshrink_encoder.h"
 
 // ROM Manager data structure
 PrNetRomManager romManager;
+static heatshrink_encoder hse;
+volatile bool ready_for_next_page;
 
 /*
  * Time format: (total seconds since 5am)/10 (fits into 13 bits)
@@ -17,6 +22,23 @@ uint16_t GetTime()
     timer.updateTime();
 
     return (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10) && 0x1FFF;
+}
+
+/*
+ * Remotely erases sensors after successful data transfer to mother node
+ */
+void remoteEraseROM()
+{
+    Serial.println("Erasing ROM");
+    romManager.eraseROM();
+}
+
+/*
+ * Write a ROM reset row
+ */
+void resetROM()
+{
+    writeDataRow(ROW_RESET);
 }
 
 /*
@@ -43,16 +65,6 @@ void writeData()
 }
 
 /*
- * Send request for ROM data to network nodes
- */
-void RequestROMFull(uint8_t id)
-{
-    char payload[] = {RADIO_REQUEST_FULL, id};
-    SimbleeCOM.send(payload, sizeof(payload));
-    Serial.println("D " + String(id));
-}
-
-/*
  * Stores timestamp OR
  * Stores x and z accelerometer data OR
  * Stores proximity events with deviceID (I), RSSI (R), and time (T) OR
@@ -69,6 +81,10 @@ void writeDataRow(uint8_t data)
     }
 
     if (data == ROW_PROX) {
+        // TODO: Share timestamp between multiple events
+        // Maybe that needs to be a different row type?
+        // 0bRRRRRRRIIIIIIIIRRRRRRRIIIIIIII // Event one, event two
+
         // Proximity event
         for (int i = 0; i < NETWORK_SIZE; i++) {
             int rssiAverage = (rssiCount[i] == 0) ? -128 : rssiTotal[i] / rssiCount[i];
@@ -125,69 +141,94 @@ void writeDataRow(uint8_t data)
 	//  Row
 	//  Data[]
  */
+
+#define PAGE_SZ 1024
+#define COMP_SZ (PAGE_SZ + (PAGE_SZ / 2) + 4)
+uint8_t comp[COMP_SZ];
 void sendROMPage(uint8_t pageNumber)
 {
     d("Transferring Page " + String(pageNumber));
     data *p = (data *)ADDRESS_OF_PAGE(pageNumber);
-    int row = 0;
     char payload[15];
     bool success = false;
 
     // Don't listen for packets while we're sending ROM
     SimbleeCOM.stopReceive();
-    while (row < MAX_ROWS) {
-        payload[0] = RADIO_RESPONSE_ROWS; // 0; // TODO: This byte can be swapped out with some other data (but what?)
-        payload[1] = pageNumber;          // TODO Can these two be replaced by an incrementing counter?
-        payload[2] = row;
-        for (int i = 0; i < 4; i++) {
-            // Read next 3 ints and incrementally shift bytes into place
-            payload[3 + i] = (p->data[row] >> (8 * i)) & 0xFF;
-            if (row + 1 < MAX_ROWS) {
-                payload[7 + i] = (p->data[row + 1] >> (8 * i)) & 0xFF;
-            } else {
-                payload[7 + i] = 0;
-            }
-            if (row + 2 < MAX_ROWS) {
-                payload[11 + i] = (p->data[row + 2] >> (8 * i)) & 0xFF;
-            } else {
-                payload[11 + i] = 0;
-            }
+
+    heatshrink_encoder_reset(&hse);
+    memset(comp, 0, COMP_SZ);
+
+    size_t count = 0;
+    uint32_t sunk = 0;
+    uint32_t polled = 0;
+    while (sunk < PAGE_SZ) {
+        //ASSERT(heatshrink_encoder_sink(&hse, &input[sunk], input_size - sunk, &count) >= 0);
+        heatshrink_encoder_sink(&hse, (uint8_t *)&p->data[sunk], PAGE_SZ - sunk, &count);
+        sunk += count;
+        if (sunk == PAGE_SZ) {
+            //ASSERT_EQ(HSER_FINISH_MORE, heatshrink_encoder_finish(&hse));
+            heatshrink_encoder_finish(&hse);
+        }
+
+        HSE_poll_res pres;
+        do { /* "turn the crank" */
+            pres = heatshrink_encoder_poll(&hse, &comp[polled], COMP_SZ - polled, &count);
+            //ASSERT(pres >= 0);
+            polled += count;
+        } while (pres == HSER_POLL_MORE);
+        //ASSERT_EQ(HSER_POLL_EMPTY, pres);
+        if (polled >= COMP_SZ)
+            d("compression should never expand that much");
+        if (sunk == PAGE_SZ) {
+            //ASSERT_EQ(HSER_FINISH_DONE, heatshrink_encoder_finish(&hse));
+            heatshrink_encoder_finish(&hse);
+        }
+    }
+
+    //d("Waiting to send next page");
+    // Tell mother what page & how big it is after compression
+    memset(payload, 0, 15);
+    payload[0] = RADIO_START_NEW_TRANSFER;
+    payload[1] = romManager.config.deviceID;
+    payload[2] = pageNumber;              // current page
+    payload[3] = polled >> 8 & 0xFF;      // byte count high
+    payload[4] = polled & 0xFF;           // byte count low
+    payload[5] = ((polled - 1) / 14) + 1; // packet count
+
+    success = false;
+    while (!success) {
+        success = SimbleeCOM.send(payload, 6);
+    }
+    //d("Sending next page");
+
+    delay(5);
+
+    count = 0;
+    uint8_t counter = 0;
+    while (count < polled) {
+        payload[0] = counter;
+        for (int i = 1; i < 15; i++) {
+            payload[i] = comp[count++];
         }
 
         success = false;
         while (!success) {
             success = SimbleeCOM.send(payload, sizeof(payload));
         }
-        row += 3;
+        counter++;
     }
 
     // Start listening for packets again
     SimbleeCOM.startReceive();
-    d("Transferred Page " + String(pageNumber));
+    d("Transferred Page " + String(pageNumber) + " compressed to " + String(polled));
 }
 
 void sendROM()
 {
     // TODO send ROM page counter
-    for (int i = STORAGE_FLASH_PAGE; i <= romManager.config.pageCounter; i--) {
+    //for (int i = STORAGE_FLASH_PAGE; i >= STORAGE_FLASH_PAGE - romManager.config.pageCounter; i--) {
+    for (int i = STORAGE_FLASH_PAGE; i >= LAST_STORAGE_PAGE; i--) {
         sendROMPage(i);
     }
     // TODO send ROM transfer complete message
-}
-
-/*
- * Remotely erases sensors after successful data transfer to mother node
- */
-void remoteEraseROM()
-{
-    Serial.println("Erasing ROM");
-    romManager.eraseROM();
-}
-
-/*
- * Write a ROM reset row
- */
-void resetROM()
-{
-    writeDataRow(ROW_RESET);
 }
