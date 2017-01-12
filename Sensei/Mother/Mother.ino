@@ -67,6 +67,15 @@ int RTC_Interrupt(uint32_t ulPin)
     return 0;
 }
 
+bool transferInProgress = false;
+unsigned int transferEsn = 0;
+int transferPacketsLeft = 0;
+int transferBytes = 0;
+int transferBufferIndex = 0;
+uint8_t transferCounter = 0;
+uint8_t transferID = 0xFF;
+#define input_size (1024)
+uint8_t transferBuffer[input_size];
 void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi)
 {
     if (len < 2) {
@@ -83,17 +92,52 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
     }
 
     // SimbleeCOM max packet size is 15 bytes
-
+    // Parse as RADIO_RESPONSE_ROWS packet and return
     if (len == 15) {
+        if (!transferInProgress) {
+            return;
+        }
+
+        if (esn != transferEsn) {
+            Serial.print("Error: Received packet from ");
+            PrintHexInt(esn);
+            Serial.print(" during transfer from ");
+            PrintHexInt(transferEsn);
+            return;
+        }
         // TODO Print esn, this will help the app tie the rows messages together
 
-        // Parse as RADIO_RESPONSE_ROWS packet and return
-        for (int i = 0; i < len; i++) {
-            // Hex in debug mode; binary in release mode
-            PrintByte(payload[i]);
+        if ((uint8_t)payload[0] != transferCounter) {
+            Serial.print("Error: expected packet #");
+            PrintHexByte(transferCounter);
+            Serial.print(", but got #");
+            PrintHexByte(payload[0]);
+            transferInProgress = false; // TODO: packet retries
+            return;
         }
-        Serial.println();
-        return;
+
+        transferCounter++;
+
+        for (int i = 1; i < len; i++) {
+            // Hex in debug mode; binary in release mode
+            transferBuffer[transferBufferIndex++] = payload[i];
+        }
+
+        transferPacketsLeft--;
+        if (transferPacketsLeft == 0) {
+            for (int i = 0; i < input_size; i++) {
+                // Hex in debug mode; binary in release mode
+                PrintByte(transferBuffer[i]);
+            }
+            Serial.println();
+
+            transferInProgress = false;
+            transferEsn = 0xFF;
+            transferPacketsLeft = 0;
+            transferBytes = 0;
+            transferCounter = 0;
+            transferBufferIndex = 0;
+        }
     }
 
     uint8_t command = payload[0];
@@ -119,8 +163,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         transferCounter = 0;
         transferID = id;
         transferBufferIndex = 0;
-        memset(transferBuffer, 0, decomp_sz);
-        memset(decomp, 0, input_size);
+        memset(transferBuffer, 0, 1024);
         break;
 
     case RADIO_PROX_PING:

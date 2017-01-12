@@ -6,11 +6,9 @@
 #include "Common\accel.h"
 #include "Common\radio_common.h"
 #include "Common\debug.h"
-#include "heatshrink_encoder.h"
 
 // ROM Manager data structure
 PrNetRomManager romManager;
-static heatshrink_encoder hse;
 volatile bool ready_for_next_page;
 
 /*
@@ -142,9 +140,7 @@ void writeDataRow(uint8_t data)
 	//  Data[]
  */
 
-#define PAGE_SZ 1024
-#define COMP_SZ (PAGE_SZ + (PAGE_SZ / 2) + 4)
-uint8_t comp[COMP_SZ];
+#define size 1024
 void sendROMPage(uint8_t pageNumber)
 {
     d("Transferring Page " + String(pageNumber));
@@ -155,45 +151,15 @@ void sendROMPage(uint8_t pageNumber)
     // Don't listen for packets while we're sending ROM
     SimbleeCOM.stopReceive();
 
-    heatshrink_encoder_reset(&hse);
-    memset(comp, 0, COMP_SZ);
-
-    size_t count = 0;
-    uint32_t sunk = 0;
-    uint32_t polled = 0;
-    while (sunk < PAGE_SZ) {
-        //ASSERT(heatshrink_encoder_sink(&hse, &input[sunk], input_size - sunk, &count) >= 0);
-        heatshrink_encoder_sink(&hse, (uint8_t *)&p->data[sunk], PAGE_SZ - sunk, &count);
-        sunk += count;
-        if (sunk == PAGE_SZ) {
-            //ASSERT_EQ(HSER_FINISH_MORE, heatshrink_encoder_finish(&hse));
-            heatshrink_encoder_finish(&hse);
-        }
-
-        HSE_poll_res pres;
-        do { /* "turn the crank" */
-            pres = heatshrink_encoder_poll(&hse, &comp[polled], COMP_SZ - polled, &count);
-            //ASSERT(pres >= 0);
-            polled += count;
-        } while (pres == HSER_POLL_MORE);
-        //ASSERT_EQ(HSER_POLL_EMPTY, pres);
-        if (polled >= COMP_SZ)
-            d("compression should never expand that much");
-        if (sunk == PAGE_SZ) {
-            //ASSERT_EQ(HSER_FINISH_DONE, heatshrink_encoder_finish(&hse));
-            heatshrink_encoder_finish(&hse);
-        }
-    }
-
     //d("Waiting to send next page");
     // Tell mother what page & how big it is after compression
     memset(payload, 0, 15);
     payload[0] = RADIO_START_NEW_TRANSFER;
     payload[1] = romManager.config.deviceID;
-    payload[2] = pageNumber;              // current page
-    payload[3] = polled >> 8 & 0xFF;      // byte count high
-    payload[4] = polled & 0xFF;           // byte count low
-    payload[5] = ((polled - 1) / 14) + 1; // packet count
+    payload[2] = pageNumber;            // current page
+    payload[3] = size >> 8 & 0xFF;      // byte count high
+    payload[4] = size & 0xFF;           // byte count low
+    payload[5] = ((size - 1) / 14) + 1; // packet count
 
     success = false;
     while (!success) {
@@ -203,12 +169,12 @@ void sendROMPage(uint8_t pageNumber)
 
     delay(5);
 
-    count = 0;
+    uint8_t count = 0;
     uint8_t counter = 0;
-    while (count < polled) {
+    while (count < size) {
         payload[0] = counter;
         for (int i = 1; i < 15; i++) {
-            payload[i] = comp[count++];
+            payload[i] = p->data[count++];
         }
 
         success = false;
@@ -220,7 +186,7 @@ void sendROMPage(uint8_t pageNumber)
 
     // Start listening for packets again
     SimbleeCOM.startReceive();
-    d("Transferred Page " + String(pageNumber) + " compressed to " + String(polled));
+    d("Transferred Page " + String(pageNumber));
 }
 
 void sendROM()
