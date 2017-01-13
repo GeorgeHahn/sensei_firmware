@@ -212,6 +212,16 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         sendROM();
         break;
 
+    case RADIO_REQUEST_COMPRESSED:
+        dn("Compressed data transfer");
+        d(id);
+        if (id != romManager.config.deviceID) {
+            return;
+        }
+
+        sendROM_heatshrink();
+        break;
+
     case RADIO_REQUEST_PARTIAL:
         if (id != romManager.config.deviceID) {
             return;

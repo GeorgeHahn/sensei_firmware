@@ -155,6 +155,8 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         transferInProgress = true;
         d("Page number: " + String((uint8_t)payload[2]));
         dn("Device: ");
+        dn("Full pages: ");
+        d(payload[6]);
         PrintHexInt(esn);
         d();
         transferEsn = esn;

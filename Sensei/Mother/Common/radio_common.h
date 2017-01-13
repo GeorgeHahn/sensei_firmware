@@ -22,6 +22,7 @@
 #define RADIO_ENTER_OTA_MODE 9
 #define RADIO_START_NEW_TRANSFER 10
 #define RADIO_REQUEST_NEXT_PAGE 11
+#define RADIO_REQUEST_COMPRESSED 12
 
 // RSSI total and count for each device
 extern int rssiTotal[];
