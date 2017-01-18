@@ -15,5 +15,6 @@ void resetROM();
 void writeData();
 void writeDataRow(uint8_t data);
 void sendROMPage(uint8_t pageNumber);
+void sendPageInfo();
 void sendROM();
 void sendROM_heatshrink();

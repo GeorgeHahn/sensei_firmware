@@ -67,6 +67,11 @@ int RTC_Interrupt(uint32_t ulPin)
     return 0;
 }
 
+void PrintPageInfo(int id, int length, bool errorflag, bool compressionflag)
+{
+
+}
+
 bool transferInProgress = false;
 unsigned int transferEsn = 0;
 int transferPacketsLeft = 0;
@@ -98,38 +103,53 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             return;
         }
 
+        bool error = false;
+
         if (esn != transferEsn) {
+            error = true;
+
+            #ifdef DEBUG
             Serial.print("Error: Received packet from ");
             PrintHexInt(esn);
             Serial.print(" during transfer from ");
             PrintHexInt(transferEsn);
-            return;
-        }
+            #endif
+        } 
         // TODO Print esn, this will help the app tie the rows messages together
 
         if ((uint8_t)payload[0] != transferCounter) {
+            error = true;
+            transferInProgress = false; // TODO: packet retries
+
+            #ifdef DEBUG
             Serial.print("Error: expected packet #");
             PrintHexByte(transferCounter);
             Serial.print(", but got #");
             PrintHexByte(payload[0]);
-            transferInProgress = false; // TODO: packet retries
-            return;
+            #endif
         }
 
-        transferCounter++;
+        if(!error) {
+            transferCounter++;
 
-        for (int i = 1; i < len; i++) {
-            // Hex in debug mode; binary in release mode
-            transferBuffer[transferBufferIndex++] = payload[i];
+            for (int i = 1; i < len; i++) {
+                // Hex in debug mode; binary in release mode
+                transferBuffer[transferBufferIndex++] = payload[i];
+            }
+
+            transferPacketsLeft--;
         }
 
-        transferPacketsLeft--;
-        if (transferPacketsLeft == 0) {
+        if (transferPacketsLeft == 0 || error) {
             for (int i = 0; i < input_size; i++) {
                 // Hex in debug mode; binary in release mode
                 PrintByte(transferBuffer[i]);
             }
             Serial.println();
+
+            if(error) {
+                PrintPageInfo(transferID, 0 /* TODO: error code */, true, false);
+            }
 
             transferInProgress = false;
             transferEsn = 0xFF;
@@ -137,6 +157,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             transferBytes = 0;
             transferCounter = 0;
             transferBufferIndex = 0;
+            transferID = 0;
         }
     }
 
@@ -157,14 +178,18 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         dn("Device: ");
         dn("Full pages: ");
         d(payload[6]);
-        PrintHexInt(esn);
+        d(esn);
         d();
+
         transferEsn = esn;
         transferBytes = (uint8_t)payload[3] << 8 | (uint8_t)payload[4];
         transferPacketsLeft = (uint8_t)payload[5];
         transferCounter = 0;
         transferID = id;
         transferBufferIndex = 0;
+
+        PrintPageInfo(transferID, transferBytes, false, false);
+
         memset(transferBuffer, 0, 1024);
         break;
 
@@ -197,6 +222,10 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         //     PrintByte(payload[i]);
         // }
         // Serial.println();
+        break;
+
+    case RADIO_RESPONSE_PAGEINFO:
+        PrintPageInfo(id, payload[2]);
         break;
 
     case RADIO_RESPONSE_COMPLETE:

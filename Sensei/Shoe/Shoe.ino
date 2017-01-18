@@ -202,6 +202,14 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         d("Done");
         break;
 
+    case RADIO_REQUEST_PAGEINFO:
+        if (id != romManager.config.deviceID) {
+            return;
+        }
+
+        sendPageInfo();
+        break;
+
     case RADIO_REQUEST_FULL:
         dn("Data transfer");
         d(id);
