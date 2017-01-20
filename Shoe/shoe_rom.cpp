@@ -1,11 +1,11 @@
 #include "shoe_rom.h"
 
 #include <SimbleeCOM.h>
-#include "Common\rom.h"
-#include "Common\rtc.h"
-#include "Common\accel.h"
-#include "Common\radio_common.h"
-#include "Common\debug.h"
+#include "src/Common/rom.h"
+#include "src/Common/rtc.h"
+#include "src/Common/accel.h"
+#include "src/Common/radio_common.h"
+#include "src/Common/debug.h"
 #include "heatshrink_encoder.h"
 
 static heatshrink_encoder hse;

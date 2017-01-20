@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "Common\heatshrink\heatshrink_common.h"
-#include "Common\heatshrink\heatshrink_config.h"
+#include "Common/heatshrink/heatshrink_common.h"
+#include "Common/heatshrink/heatshrink_config.h"
 
 typedef enum {
     HSER_SINK_OK,               /* data sunk into input buffer */
