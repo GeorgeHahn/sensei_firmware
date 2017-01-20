@@ -8,8 +8,6 @@
 #include "Common\debug.h"
 #include "heatshrink_encoder.h"
 
-// ROM Manager data structure
-PrNetRomManager romManager;
 static heatshrink_encoder hse;
 volatile bool ready_for_next_page;
 

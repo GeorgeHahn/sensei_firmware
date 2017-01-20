@@ -1,5 +1,5 @@
-#include "PrNetRomManager\PrNetRomManager.h"
-#include "PrNetRomManager\util.h"
+#include "PrNetRomManager/PrNetRomManager.h"
+#include "PrNetRomManager/util.h"
 
 #define ROW_RESET (0)
 #define ROW_TIME (1)

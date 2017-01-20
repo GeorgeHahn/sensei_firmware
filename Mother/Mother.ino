@@ -1,12 +1,12 @@
 #include "config.h"
-#include "Common\debug.h"
-#include "Common\config.h"
-#include "Common\rtc.h"
-#include "Common\radio_common.h"
-#include "Common\accel.h"
-#include "Common\rom.h"
-#include "Common\command.h"
-#include "Common\Wire\Wire.h"
+#include "src/Common/debug.h"
+#include "src/Common/config.h"
+#include "src/Common/rtc.h"
+#include "src/Common/radio_common.h"
+#include "src/Common/accel.h"
+#include "src/Common/rom.h"
+#include "src/Common/command.h"
+#include "src/Common/Wire/Wire.h"
 
 #include <SimbleeCOM.h>
 
@@ -225,7 +225,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_RESPONSE_PAGEINFO:
-        PrintPageInfo(id, payload[2]);
+        PrintPageInfo(id, payload[2], false, false);
         break;
 
     case RADIO_RESPONSE_COMPLETE:

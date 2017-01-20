@@ -43,15 +43,11 @@ void InterpretCommand()
         // Request a partial ROM dump
         //RequestROMPartial();
     } else if (ch == 'L' || ch == 'l') {
-        // Tell sensor device to erase flash and go to sleep
+        // Tell sensor device to go to sleep
 
     } else if (ch == 'O' || ch == 'o') {
         // Print list of online devices
         printOnlineDevices();
-    } else if (ch == 'U' || ch == 'u') {
-        // Ask device for page usage
-        uint8_t id = ReadHexByte();
-        RequestPageInfo(id);
     } else
 #endif
         if (ch == ' ') {

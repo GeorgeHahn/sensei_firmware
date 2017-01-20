@@ -47,4 +47,6 @@ class PrNetRomManager
     void CheckPageSpace();
 };
 
+extern PrNetRomManager romManager;
+
 #endif

@@ -9,6 +9,9 @@
 #include "util.h"
 #include "PrNetRomManager.h"
 
+// ROM Manager data structure
+PrNetRomManager romManager;
+
 PrNetRomManager::PrNetRomManager() { loadConfig(); }
 
 bool PrNetRomManager::OutOfSpace()

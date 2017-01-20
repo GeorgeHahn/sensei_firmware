@@ -1,4 +1,3 @@
-#include "..\config.h"
 
 #define BAUD_RATE 115200
 #define USE_SERIAL_MONITOR true

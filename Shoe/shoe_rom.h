@@ -5,7 +5,6 @@
 #include "Common\radio_common.h"
 #include "Common\debug.h"
 
-extern PrNetRomManager romManager;
 extern volatile bool ready_for_next_page;
 
 uint16_t GetTime();
