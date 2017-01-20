@@ -297,8 +297,7 @@ void sendROM()
 void sendPageInfo()
 {
     char payload[] = {RADIO_RESPONSE_PAGEINFO, romManager.config.deviceID, romManager.config.pageCounter};
-
-    success = false;
+    bool success = false;
     while (!success) {
         success = SimbleeCOM.send(payload, sizeof(payload));
     }
