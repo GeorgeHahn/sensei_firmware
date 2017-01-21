@@ -61,7 +61,7 @@ int RTC_Interrupt(uint32_t ulPin)
 #define HEADER_TYPE_LENGTH (0x00)
 #define HEADER_TYPE_ERROR (0x01)
 #define HEADER_TYPE_BATTERY (0x02)
-#define HEADER_TYPE_PAGE_COUNT (0x03);
+#define HEADER_TYPE_PAGE_COUNT (0x03)
 
 /* 
  * Print header for data row
@@ -214,10 +214,8 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_RESPONSE_BATTERY:
-        uint8_t batterylevel = (uint8_t)payload[2];
-
         // Print battery level
-        PrintPageHeader(id, HEADER_TYPE_BATTERY, batterylevel, false);
+        PrintPageHeader(id, HEADER_TYPE_BATTERY, (uint8_t)payload[2], false);
         break;
 
     case RADIO_PROX_PING:
