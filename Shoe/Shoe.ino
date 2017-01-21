@@ -75,7 +75,7 @@ void SendPing()
 {
     char payload[] = {RADIO_PROX_PING, romManager.config.deviceID};
 
-    success = false;
+    bool success = false;
     while (!success) {
         success = SimbleeCOM.send(payload, sizeof(payload));
     }
@@ -89,7 +89,7 @@ void SendBatteryLevel()
     }
     char payload[] = {RADIO_RESPONSE_BATTERY, romManager.config.deviceID, 0x00};
 
-    success = false;
+    bool success = false;
     while (!success) {
         success = SimbleeCOM.send(payload, sizeof(payload));
     }
