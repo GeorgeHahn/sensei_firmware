@@ -7,6 +7,11 @@
 #include "rom.h"
 #include "radio_common.h"
 
+// This reaches back up into the parent code to
+// get board type
+#include "../../config.h"
+
+
 void InterpretCommand()
 {
     char ch;
@@ -37,7 +42,7 @@ void InterpretCommand()
 
 // TODO: Add page usage info request (RADIO_REQUEST_PAGEINFO)
 #ifdef MOTHER_NODE
-        if (ch == 'D' || ch == 'd') {
+    if (ch == 'D' || ch == 'd') {
         // Request full flash dump
         uint8_t id = ReadHexByte();
         RequestROMFull(id);
