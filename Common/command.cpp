@@ -35,6 +35,7 @@ void InterpretCommand()
     } else
 #endif
 
+// TODO: Add page usage info request (RADIO_REQUEST_PAGEINFO)
 #ifdef MOTHER_NODE
         if (ch == 'D' || ch == 'd') {
         // Request full flash dump
