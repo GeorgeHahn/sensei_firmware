@@ -26,6 +26,8 @@
 #define RADIO_REQUEST_PAGEINFO 13
 #define RADIO_RESPONSE_PAGEINFO 14
 #define RADIO_START_COMPRESSED_TRANSFER 15
+#define RADIO_REQUEST_SLEEP_ERASE 16
+#define RADIO_RESPONSE_BATTERY 17
 
 // RSSI total and count for each device
 extern int rssiTotal[];
@@ -49,3 +51,5 @@ void RequestFullData(uint8_t transferDevice);
 void RequestPartialData(uint8_t transferDevice, uint8_t row, uint8_t length);
 void SendTime(uint8_t month, uint8_t date, uint8_t year, uint8_t day, uint8_t hours, uint8_t minutes, uint8_t seconds);
 void RequestNextPage(uint8_t id);
+void RequestROMFull(uint8_t id);
+void RequestSleepErase(uint8_t id);

@@ -13,16 +13,6 @@
 unsigned long deviceOnlineTime[NETWORK_SIZE];
 bool RTC_FLAG = false;
 
-/*
- * Send request for ROM data to network nodes
- */
-void RequestROMFull(uint8_t id)
-{
-    char payload[] = {RADIO_REQUEST_FULL, id};
-    SimbleeCOM.send(payload, sizeof(payload));
-    Serial.println("D " + String(id));
-}
-
 void setup()
 {
     Serial.begin(BAUD_RATE);
@@ -67,9 +57,37 @@ int RTC_Interrupt(uint32_t ulPin)
     return 0;
 }
 
-void PrintPageInfo(int id, int length, bool errorflag, bool compressionflag)
-{
+// These don't need to be a bitfield
+#define HEADER_TYPE_LENGTH (0x00)
+#define HEADER_TYPE_ERROR (0x01)
+#define HEADER_TYPE_BATTERY (0x02)
+#define HEADER_TYPE_PAGE_COUNT (0x03);
 
+/* 
+ * Print header for data row
+ *
+ * Header format: 3 bytes
+ *  value: mask 0x7FF << 0 (11 bits)
+ *  ID: mask 0xFF << 11 (8 bits)
+ *      device id (0-63) - may grow in the future
+ *  compression: 1 bit (mask 0x1 << 19 (1 bit))
+ *  header type: 2 bits (mask 0x3 << 20 (2 bits))
+ *      length: value field is 0-1023
+ *      error: error number may be set in the value field (currently unimplemented)
+ *      battery: level is 8 bits (in value field)
+ *      page count: number of used pages set in value field (0-128 currently)
+ *  reserved: top 2 bits
+ */
+void PrintPageHeader(int ID, uint8_t headerType, int value, bool compressionFlag)
+{
+    uint32_t header = 0;
+    header = (value & 0x7FF) |
+             (ID & 0xFF) << 11 |
+             (compressionFlag & 0x01) << 19 |
+             (headerType & 0x03) << 20;
+    PrintHexByte((header >> 16) & 0xFF);
+    PrintHexByte((header >> 8) & 0xFF);
+    PrintHexByte(header & 0xFF);
 }
 
 bool transferInProgress = false;
@@ -108,28 +126,27 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         if (esn != transferEsn) {
             error = true;
 
-            #ifdef DEBUG
+#ifdef DEBUG
             Serial.print("Error: Received packet from ");
             PrintHexInt(esn);
             Serial.print(" during transfer from ");
             PrintHexInt(transferEsn);
-            #endif
-        } 
-        // TODO Print esn, this will help the app tie the rows messages together
+#endif
+        }
 
         if ((uint8_t)payload[0] != transferCounter) {
             error = true;
             transferInProgress = false; // TODO: packet retries
 
-            #ifdef DEBUG
+#ifdef DEBUG
             Serial.print("Error: expected packet #");
             PrintHexByte(transferCounter);
             Serial.print(", but got #");
             PrintHexByte(payload[0]);
-            #endif
+#endif
         }
 
-        if(!error) {
+        if (!error) {
             transferCounter++;
 
             for (int i = 1; i < len; i++) {
@@ -141,14 +158,15 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         }
 
         if (transferPacketsLeft == 0 || error) {
+            // If error, print all of the bytes, then send an error header
             for (int i = 0; i < input_size; i++) {
                 // Hex in debug mode; binary in release mode
                 PrintByte(transferBuffer[i]);
             }
             Serial.println();
 
-            if(error) {
-                PrintPageInfo(transferID, 0 /* TODO: error code */, true, false);
+            if (error) {
+                PrintPageHeader(transferID, HEADER_TYPE_ERROR, 0 /* TODO: error code */, false);
             }
 
             transferInProgress = false;
@@ -188,9 +206,18 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         transferID = id;
         transferBufferIndex = 0;
 
-        PrintPageInfo(transferID, transferBytes, false, false);
+        // Print row length
+        PrintPageHeader(transferID, HEADER_TYPE_LENGTH, transferBytes, false);
 
+        // Zero our buffer (not strictly necessary)
         memset(transferBuffer, 0, 1024);
+        break;
+
+    case RADIO_RESPONSE_BATTERY:
+        uint8_t batterylevel = (uint8_t)payload[2];
+
+        // Print battery level
+        PrintPageHeader(id, HEADER_TYPE_BATTERY, batterylevel, false);
         break;
 
     case RADIO_PROX_PING:
@@ -225,7 +252,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_RESPONSE_PAGEINFO:
-        PrintPageInfo(id, payload[2], false, false);
+        PrintPageHeader(id, HEADER_TYPE_PAGE_COUNT, payload[2], false);
         break;
 
     case RADIO_RESPONSE_COMPLETE:

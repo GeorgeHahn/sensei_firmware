@@ -21,9 +21,9 @@ void InterpretCommand()
     if (ch == 'T' || ch == 't') {
         programSystemTime();
     } else
+
 #ifndef MOTHER_NODE
         if (ch == 'I' || ch == 'i') {
-        //Serial.println(SimbleeCOM.getESN(), HEX);
         Serial.println(romManager.config.deviceID, HEX);
     } else if (ch == 'P' || ch == 'p') {
         romManager.printROM();
@@ -34,6 +34,7 @@ void InterpretCommand()
         romManager.SetDeviceID(ReadHexByte());
     } else
 #endif
+
 #ifdef MOTHER_NODE
         if (ch == 'D' || ch == 'd') {
         // Request full flash dump
@@ -44,7 +45,8 @@ void InterpretCommand()
         //RequestROMPartial();
     } else if (ch == 'L' || ch == 'l') {
         // Tell sensor device to go to sleep
-
+        uint8_t id = ReadHexByte();
+        RequestSleepErase(id);
     } else if (ch == 'O' || ch == 'o') {
         // Print list of online devices
         printOnlineDevices();

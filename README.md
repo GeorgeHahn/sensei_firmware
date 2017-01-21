@@ -1,3 +1,7 @@
+# Building
+
+Due to the Arduino IDE's code organization requirements, common code is shared by means of symbolic links. Common code is stored in the `Common` top level folder and is symbolic linked to the src subfolder of both the Mother and Shoe directories. This should happen automatically on Mac and Linux, but may need to be added manually on Windows. Note also that these must be absolute links on WIndows; relative links are not handled correctly by the Arduino IDE.
+
 # Protocol
 
 ## Help
@@ -58,8 +62,7 @@ data: 12 bytes of data
 
 [Repeated xN for all non-empty flash pages]
 
-### TODO: send a list of all non-empty flash pages (enables single-page retries)
-
+### TODO: Single page downloads
 Command: 'S'
 
 Returns a single flash page from selected device

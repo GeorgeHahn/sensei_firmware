@@ -85,3 +85,21 @@ void RequestNextPage(uint8_t id)
     char payload[] = {RADIO_REQUEST_NEXT_PAGE, id};
     SimbleeCOM.send(payload, sizeof(payload));
 }
+
+/*
+ * Send request for ROM data to network nodes
+ */
+void RequestROMFull(uint8_t id)
+{
+    char payload[] = {RADIO_REQUEST_FULL, id};
+    SimbleeCOM.send(payload, sizeof(payload));
+}
+
+/*
+ * Tell network node to go to sleep and erase its flash
+ */
+void RequestSleepErase(uint8_t id)
+{
+    char payload[] = {RADIO_REQUEST_SLEEP_ERASE, id};
+    SimbleeCOM.send(payload, sizeof(payload));
+}

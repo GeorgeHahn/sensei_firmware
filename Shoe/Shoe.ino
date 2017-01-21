@@ -15,12 +15,8 @@
 #include "src/Common/Wire/Wire.h"
 #include "shoe_rom.h"
 
-// TODO
-
 // TODO: If after 4pm, set an alarm for the next morning at 9am and sleep until then
-
 //	Use RTC alarm to wake up at the beginning of START_HOUR:START_MINUTE
-
 //	Lesson tracker & region tracker may be able to get away without storing any data
 
 volatile bool RTC_FLAG = false;
@@ -47,7 +43,11 @@ void setup()
     }
     d(romManager.config.deviceID);
 
-    // Put a mark in ROM
+    if (romManager.config.deviceID == 0xFF) {
+        Serial.println("WARNING: DEVICE ID NOT SET");
+    }
+
+    // Put a mark in ROM (TODO: do we care?)
     resetROM();
 
     d("Waiting for time");
@@ -74,7 +74,25 @@ void setup()
 void SendPing()
 {
     char payload[] = {RADIO_PROX_PING, romManager.config.deviceID};
-    SimbleeCOM.send(payload, sizeof(payload));
+
+    success = false;
+    while (!success) {
+        success = SimbleeCOM.send(payload, sizeof(payload));
+    }
+}
+
+void SendBatteryLevel()
+{
+    // Currently, only the student tracker hardware is capable of performing battery measurements
+    if (!STUDENT_TRACKER) {
+        return;
+    }
+    char payload[] = {RADIO_RESPONSE_BATTERY, romManager.config.deviceID, 0x00};
+
+    success = false;
+    while (!success) {
+        success = SimbleeCOM.send(payload, sizeof(payload));
+    }
 }
 
 uint8_t ping_transmit_delay;
@@ -217,6 +235,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             return;
         }
 
+        SendBatteryLevel();
         sendROM();
         break;
 
@@ -227,6 +246,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             return;
         }
 
+        SendBatteryLevel();
         sendROM_heatshrink();
         break;
 

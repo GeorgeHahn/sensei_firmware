@@ -259,6 +259,7 @@ void sendROMPage(uint8_t pageNumber)
     payload[5] = ((size - 1) / 14) + 1;         // packet count
     payload[6] = romManager.config.pageCounter; // total page count
 
+    // TODO: All SimbleeCOM send calls should check for success (!success => queue is full)
     success = false;
     while (!success) {
         success = SimbleeCOM.send(payload, 7);
