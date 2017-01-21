@@ -16,6 +16,8 @@ if len(serial_devices) == 0:
     print("No serial devices found")
     exit(0)
 
+print "Using %s" % serial_devices[0]
+
 ser = serial.Serial(serial_devices[0], baudRate)
 
 while not connected:
