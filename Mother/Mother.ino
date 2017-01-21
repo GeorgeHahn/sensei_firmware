@@ -63,7 +63,7 @@ int RTC_Interrupt(uint32_t ulPin)
 #define HEADER_TYPE_BATTERY (0x02)
 #define HEADER_TYPE_PAGE_COUNT (0x03)
 
-/* 
+/*
  * Print header for data row
  *
  * Header format: 3 bytes
@@ -298,6 +298,8 @@ void synchronizeTime()
              timer.t.day, timer.t.hours, timer.t.minutes,
              timer.t.seconds);
 
+#ifdef DEBUG
     dn("Broadcasting RTC Time: ");
     timer.displayDateTime();
+#endif
 }

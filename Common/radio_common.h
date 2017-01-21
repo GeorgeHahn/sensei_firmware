@@ -38,8 +38,7 @@ extern bool broadcasting;
 
 // Boolean on whether received new data
 extern volatile bool newData;
-// Boolean on whether to collect data
-extern volatile bool collectData;
+
 // Time acknowledgment variable
 extern unsigned long discoveryTime;
 

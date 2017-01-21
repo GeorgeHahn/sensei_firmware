@@ -19,6 +19,9 @@
 //	Use RTC alarm to wake up at the beginning of START_HOUR:START_MINUTE
 //	Lesson tracker & region tracker may be able to get away without storing any data
 
+// Boolean on whether to collect data
+volatile bool collectData;
+
 volatile bool RTC_FLAG = false;
 void setup()
 {
@@ -107,7 +110,6 @@ void loop()
             readAcc();
             disableAccelerometer();
         }
-
         startBroadcast();
 
         ping_transmit_delay = random(MS_SEND_DELAY_MIN, MS_SEND_DELAY_MAX);
@@ -134,9 +136,10 @@ int RTC_Interrupt(uint32_t ulPin)
 
     // Collect data every few seconds if we're in the data collection period
     if (timer.t.seconds % 10 == 0) {
-        if (timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
+        if (alwaysCollectMode || timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
             collectData = true;
         }
+        Serial.println("");
     }
 
     // Update internal timer from RTC every ten seconds when we're in the data collection period

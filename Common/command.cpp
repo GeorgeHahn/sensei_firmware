@@ -11,6 +11,8 @@
 // get board type
 #include "../../config.h"
 
+// Override schedule
+bool alwaysCollectMode = false;
 
 void InterpretCommand()
 {
@@ -28,7 +30,14 @@ void InterpretCommand()
     } else
 
 #ifndef MOTHER_NODE
-        if (ch == 'I' || ch == 'i') {
+    if (ch == 'A' || ch == 'a') {
+        alwaysCollectMode = ReadChar() == '1';
+        if (alwaysCollectMode) {
+            d("alwaysCollectMode is on");
+        } else {
+            d("alwaysCollectMode is off");
+        }
+    } else if (ch == 'I' || ch == 'i') {
         Serial.println(romManager.config.deviceID, HEX);
     } else if (ch == 'P' || ch == 'p') {
         romManager.printROM();
@@ -64,6 +73,8 @@ void InterpretCommand()
         Serial.println("Available commands:");
         Serial.println("\tT: program system time");
 #ifndef MOTHER_NODE
+        Serial.println("\tA1: Always collect data");
+        Serial.println("\tA0: Collect data during scheduled times");
         Serial.println("\tI: print device ID");
         Serial.println("\tP: print ROM");
         Serial.println("\tE: erase ROM");

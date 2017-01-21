@@ -32,6 +32,11 @@ void PrintHexByte(uint8_t data)
     Serial.print(tmp);
 }
 
+void PrintBinaryByte(uint8_t data)
+{
+  Serial.write(data);  
+}
+
 char ReadChar()
 {
     while (Serial.available() == 0) {
