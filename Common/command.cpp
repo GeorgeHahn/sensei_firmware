@@ -38,7 +38,7 @@ void InterpretCommand()
             d("alwaysCollectMode is off");
         }
     } else if (ch == 'I' || ch == 'i') {
-        Serial.println(romManager.config.deviceID, HEX);
+        PrintByte(romManager.config.deviceID);
     } else if (ch == 'P' || ch == 'p') {
         romManager.printROM();
     } else if (ch == 'E' || ch == 'e') {
