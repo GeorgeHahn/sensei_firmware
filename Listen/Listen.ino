@@ -31,5 +31,5 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
   printf("0x%08x ", esn);
   for (int i = 0; i < len; i++)
     printf("%02x ", payload[i]);
-  printf("\n");
+  printf("\r\n");
 }
