@@ -10,6 +10,7 @@
 #include "src/Common/accel.h"
 #include "src/Common/rom.h"
 #include "src/Common/command.h"
+#include "src/Common/battery.h"
 
 #include <SimbleeCOM.h>
 #include "src/Common/Wire/Wire.h"
@@ -90,7 +91,7 @@ void SendBatteryLevel()
     if (!STUDENT_TRACKER) {
         return;
     }
-    char payload[] = {RADIO_RESPONSE_BATTERY, romManager.config.deviceID, 0x00};
+    char payload[] = {RADIO_RESPONSE_BATTERY, get_battery_pct(), 0x00};
 
     bool success = false;
     while (!success) {
