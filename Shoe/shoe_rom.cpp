@@ -268,7 +268,7 @@ void sendROMPage(uint8_t pageNumber)
 
     delay(5);
 
-    uint8_t count = 0;
+    uint16_t count = 0;
     uint8_t counter = 0;
     while (count < size) {
         payload[0] = counter;
@@ -290,7 +290,9 @@ void sendROMPage(uint8_t pageNumber)
 
 void sendROM()
 {
-    for (int i = STORAGE_FLASH_PAGE; i >= STORAGE_FLASH_PAGE - romManager.config.pageCounter; i--) {
+    d("pageCount = " + String(romManager.config.pageCounter));
+    for (int i = STORAGE_FLASH_PAGE; i >= romManager.config.pageCounter; i--) {
+        d("sending page: " + String(i));
         sendROMPage(i);
     }
 }

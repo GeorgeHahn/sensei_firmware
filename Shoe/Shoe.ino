@@ -47,7 +47,7 @@ void setup()
     }
     d(romManager.config.deviceID);
 
-    if (romManager.config.deviceID == 0xFF) {
+    if (romManager.config.deviceID == 0x00) {
         Serial.println("WARNING: DEVICE ID NOT SET");
     }
 

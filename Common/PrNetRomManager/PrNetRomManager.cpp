@@ -99,9 +99,13 @@ int PrNetRomManager::writePage(int page, struct data values)
 void PrNetRomManager::loadConfig()
 {
     prnetConfig *p = (prnetConfig *)ADDRESS_OF_PAGE(SETTINGS_FLASH_PAGE);
-    config.pageCounter = p->pageCounter;
-    config.rowCounter = p->rowCounter;
-    config.deviceID = p->deviceID;
+    if (p->pageCounter == -1) {
+        eraseROM();
+    } else {
+        config.pageCounter = p->pageCounter;
+        config.rowCounter = p->rowCounter;
+        config.deviceID = p->deviceID;
+    }
 }
 
 // Save current settings to flash
