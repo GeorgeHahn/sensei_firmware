@@ -34,7 +34,17 @@ void PrintHexByte(uint8_t data)
 
 void PrintBinaryByte(uint8_t data)
 {
-  Serial.write(data);  
+  Serial.write(data);
+}
+
+void PrintBinaryData(uint8_t *data, unsigned int len) {
+  Serial.write(data, len);
+}
+
+void PrintHexData(uint8_t *data, unsigned int len) {
+  for (unsigned int i=0; i<len; i++) {
+    PrintHexByte(data[i]);
+  }
 }
 
 char ReadChar()
