@@ -23,12 +23,15 @@
 // Boolean on whether to collect data
 volatile bool collectData;
 
-volatile bool RTC_FLAG = false;
 void setup()
 {
     pinMode(RTC_INTERRUPT_PIN, INPUT_PULLUP);
     SimbleeCOM.txPowerLevel = TX_POWER_LEVEL;
+
+    // nRF provides an internal source of randomness
     RandomSeed();
+
+    // Set I2C to 400KHz
     Wire.speed = 400;
     Wire.beginOnPins(14, 13);
 
@@ -54,11 +57,16 @@ void setup()
     // Put a mark in ROM (TODO: do we care?)
     resetROM();
 
+    // Don't do anything after powerup until we receive a time.
+    // Sleeps an odd number of MS to ensure time will be picked up after a few cycles
     d("Waiting for time");
     startBroadcast();
     while (!timer.isTimeSet) {
         delay(5);
         InterpretCommand();
+
+        delay(600); // TODO may want to loop InterpretCommand during this
+        Simblee_ULPDelay(MILLISECONDS(800));
     }
     stopBroadcast();
     d("Time set.");
@@ -116,7 +124,7 @@ void loop()
         ping_transmit_delay = random(MS_SEND_DELAY_MIN, MS_SEND_DELAY_MAX);
         delay(ping_transmit_delay);
         SendPing();
-        delay(MS_TO_COLLECT - ping_transmit_delay); // We're going to get hit with an interrupt here; not sure how it should be dealt with. Either the TODO comment above or below should handle it.
+        delay(MS_TO_COLLECT - ping_transmit_delay);
 
         stopBroadcast();
         writeData();
@@ -126,6 +134,8 @@ void loop()
     dn("_");
     Serial.flush();
     Simblee_ULPDelay(SECONDS(1));
+
+    // TODO: It would be really nice if we knew why this call doesn't work as expected
     //Simblee_systemOff();
 }
 
@@ -133,6 +143,7 @@ int RTC_Interrupt(uint32_t ulPin)
 {
     Simblee_resetPinWake(ulPin);
 
+    // TODO: This is an expensive call and should be refactored or eliminated
     timer.NextSecond();
 
     // Collect data every few seconds if we're in the data collection period
@@ -142,13 +153,6 @@ int RTC_Interrupt(uint32_t ulPin)
         }
         Serial.println("");
     }
-
-    // Update internal timer from RTC every ten seconds when we're in the data collection period
-    RTC_FLAG = (timer.secondsElapsed >= MINUTES_BETWEEN_SYNC * 60 &&
-                !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) ||
-               !timer.timeout(&discoveryTime, SECONDS_TO_ACK_TIME * 1000) &&
-                   !timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE) ||
-               collectData;
 
     dn("-");
 
@@ -188,6 +192,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
     uint8_t command = payload[0];
     uint8_t id = payload[1];
+    bool id_match = (id == romManager.config.deviceID);
 
     // Over the air protocol, bytes:
     // 0: Command
@@ -216,7 +221,6 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         setRTCTime((int)payload[1], (int)payload[2], (int)payload[3], (int)payload[4], (int)payload[5], (int)payload[6], (int)payload[7]);
         timer.totalSecondsElapsed = 1;
         timer.secondsElapsed = 1;
-        RTC_FLAG = true;
         synchronizeTime();
 
         EnableRTCInterrupt();
@@ -225,7 +229,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_REQUEST_PAGEINFO:
-        if (id != romManager.config.deviceID) {
+        if (!id_match) {
             return;
         }
 
@@ -235,7 +239,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
     case RADIO_REQUEST_FULL:
         dn("Data transfer");
         d(id);
-        if (id != romManager.config.deviceID) {
+        if (!id_match) {
             return;
         }
 
@@ -246,7 +250,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
     case RADIO_REQUEST_COMPRESSED:
         dn("Compressed data transfer");
         d(id);
-        if (id != romManager.config.deviceID) {
+        if (!id_match) {
             return;
         }
 
@@ -255,7 +259,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_REQUEST_PARTIAL:
-        if (id != romManager.config.deviceID) {
+        if (!id_match) {
             return;
         }
         //transferPage = (uint8_t)payload[1];
@@ -267,21 +271,30 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_REQUEST_ERASE:
-        if (id != romManager.config.deviceID) {
+        if (!id_match) {
             return;
         }
         remoteEraseROM();
         break;
 
+    case RADIO_REQUEST_SLEEP_ERASE:
+        if (!id_match) {
+            return;
+        }
+        remoteEraseROM();
+    // fall through to sleep
+
     case RADIO_REQUEST_SLEEP:
-        if (id != romManager.config.deviceID) {
+        if (!id_match) {
             return;
         }
         // TODO: Go to sleep until tomorrow morning
+        // Set RTC alarm for tomorrow morning
+        // Simblee_SystemOff
         break;
 
     case RADIO_ENTER_OTA_MODE:
-        if (id != romManager.config.deviceID) {
+        if (!id_match) {
             return;
         }
 
@@ -293,7 +306,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         break;
 
     case RADIO_REQUEST_NEXT_PAGE:
-        if (id != romManager.config.deviceID) {
+        if (!id_match) {
             return;
         }
 
@@ -322,12 +335,9 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
  */
 void synchronizeTime()
 {
-    if (RTC_FLAG) {
-        DS3231_get(&rtcTime);
-        timer.setInitialTime(rtcTime.mon, rtcTime.mday, rtcTime.year_s,
-                             rtcTime.wday, rtcTime.hour, rtcTime.min, rtcTime.sec);
-        RTC_FLAG = false;
-        Serial.print("RTC Time: ");
-        timer.displayDateTime();
-    }
+    DS3231_get(&rtcTime);
+    timer.setInitialTime(rtcTime.mon, rtcTime.mday, rtcTime.year_s,
+                         rtcTime.wday, rtcTime.hour, rtcTime.min, rtcTime.sec);
+    Serial.print("RTC Time: ");
+    timer.displayDateTime();
 }

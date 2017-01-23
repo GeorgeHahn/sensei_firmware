@@ -133,10 +133,10 @@ void PrintPageHeader(int ID, uint8_t headerType, uint16_t value, uint8_t value2,
              (ID & 0xFF) << 19 |
              (compressionFlag & 0x01) << 27 |
              (headerType & 0x03) << 28;
-    PrintHexByte((header >> 24) & 0xFF);
-    PrintHexByte((header >> 16) & 0xFF);
-    PrintHexByte((header >> 8) & 0xFF);
-    PrintHexByte(header & 0xFF);
+    PrintByte((header >> 24) & 0xFF);
+    PrintByte((header >> 16) & 0xFF);
+    PrintByte((header >> 8) & 0xFF);
+    PrintByte(header & 0xFF);
 }
 
 bool transferInProgress = false;
@@ -197,12 +197,15 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
         if (!error) {
             transferCounter++;
 
+            // TODO: With counter, we can easily fill in the buffer and track chunks that have been Received, requesting missed chunks at the end
             for (int i = 1; i < len; i++) {
                 transferBuffer[transferBufferIndex++] = payload[i];
             }
             transferPacketsLeft--;
         }
 
+        // If complete, print all bytes and reset for the next transfer
+        // If error, print all of the bytes, then send an error header and reset for the next transfer
         if (transferPacketsLeft == 0 || error) {
             // print error flag
             if (error) {
@@ -267,7 +270,6 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
         transferID = id;
         transferBufferIndex = 0;
 
-
         // Zero our buffer (not strictly necessary)
         memset(transferBuffer, 0, 1024);
         break;
@@ -297,18 +299,6 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
     case RADIO_RESPONSE_ROWS:
         // Handled above; all 15B packets are interpreted as RADIO_RESPONSE_ROWS packets
 
-        // Bytes
-        //  command
-        //  Page
-        //  Row
-        //  Data[]
-
-        // Assumption: Only one shoe sensor is sending rows at once
-        // for (int i = 1; i < len; i++) {
-        //     // Hex in debug mode; binary in release mode
-        //     PrintByte(payload[i]);
-        // }
-        // Serial.println();
         break;
 
     case RADIO_RESPONSE_PAGEINFO:
@@ -366,7 +356,7 @@ void synchronizeTime()
 #endif
 
     // Wait until sensors are listening to request data
-    if (timer.t.seconds % 10 == 0 && pendingDataRequestForSensorId > 0) {
+    if (pendingDataRequestForSensorId > 0 && timer.t.seconds % 10 == 0) {
         delay(100);
         RequestROMFull(pendingDataRequestForSensorId);
         pendingDataRequestForSensorId = 0;

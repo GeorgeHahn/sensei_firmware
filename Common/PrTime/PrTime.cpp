@@ -34,6 +34,7 @@ void Time::setInitialTime(int month, int date, int year, int day, int hours, int
 
 void Time::NextSecond()
 {
+    // TODO: Add & set dirty flag; if unset, noop updateTime()
     if (!isTimeSet) {
         return;
     }

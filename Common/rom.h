@@ -4,7 +4,7 @@
 #define ROW_RESET (0)
 #define ROW_TIME (1)
 #define ROW_ACCEL (2)
-#define ROW_PROX (3)
+#define ROW_PROX (3) // Should really be ROWS_PROX, as it may write up to NETWORK_SIZE rows
 
 // Flash storage headers - 1-3 bits
 #define DATA_ROW_HEADER 0x80000000  // 0b1... (31 bits)
