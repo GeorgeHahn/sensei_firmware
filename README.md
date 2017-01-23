@@ -30,7 +30,7 @@ Example: T1202165130402000 sets the time to Friday Dec 2 2016 1:04:02.000 PM
 ## Get device ID
 Command: 'I'
 
-Returns the ID stored in local device flash
+Returns the ID stored in local device flash. The value returned will be a single binary byte.
 
 
 ## Print online devices:
