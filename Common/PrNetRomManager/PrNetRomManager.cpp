@@ -85,11 +85,6 @@ int PrNetRomManager::writePage(int page, struct data values)
     if (page >= LAST_STORAGE_PAGE) {
         data *p = (data *)ADDRESS_OF_PAGE(page);
         int rc = flashWriteBlock(p, &values, sizeof(values));
-        if (config.rowCounter >= MAX_ROWS) {
-            config.pageCounter--;
-            config.rowCounter = 0;
-        }
-        updateConfig();
         return rc;
     } else {
         return -1;
