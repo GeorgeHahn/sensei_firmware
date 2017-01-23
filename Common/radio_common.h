@@ -8,7 +8,6 @@
 #define SECONDS_TO_TRACK 15
 #define SECONDS_TO_ACK_TIME 60
 #define SECONDS_TO_TRANSFER 5
-#define MINUTES_BETWEEN_SYNC 20
 
 // Radio commands
 #define RADIO_PROX_PING 1

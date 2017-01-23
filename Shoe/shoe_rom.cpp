@@ -27,7 +27,7 @@ uint16_t GetTime()
  */
 void remoteEraseROM()
 {
-    Serial.println("Erasing ROM");
+    d("Erasing ROM");
     romManager.eraseROM();
 }
 
@@ -83,6 +83,8 @@ void writeDataRow(uint8_t data)
         // Maybe that needs to be a different row type?
         // 0bRRRRRRRIIIIIIIIRRRRRRRIIIIIIII // Event one, event two
 
+        uint16_t time = GetTime();
+
         // Proximity event
         for (int i = 0; i < NETWORK_SIZE; i++) {
             int rssiAverage = (rssiCount[i] == 0) ? -128 : rssiTotal[i] / rssiCount[i];
@@ -102,11 +104,13 @@ void writeDataRow(uint8_t data)
                 // 0b1, Time (13 bits), rssi (7 bits), unused (3 bits), ID (8 bits)
                 // 0b1TTTTTTTTTTTTTRRRRRRRUUUIIIIIIII
                 romManager.table.data[romManager.config.rowCounter] = DATA_ROW_HEADER |          // 0b1...
-                                                                      GetTime() & 0x1FFF << 18 | // Time mask: 0x7FFC0000
+                                                                      time & 0x1FFF << 18 |      // Time mask: 0x7FFC0000
                                                                       rssiAverage & 0x7F << 11 | // RSSI mask: 0x0003F800
                                                                       // Bits 8, 9, 10 are free
-                                                                      i & 0xFF; // Device ID mask: 0x000000FF
+                                                                      i & 0xFF; // Device ID mask: 0x000000FF (is actually 0x3F with NETWORK_SIZE of 64)
+                                                                                // If we can find 3 more bits, we can pack these rows into 3 bytes
                 romManager.config.rowCounter++;
+                // Unused bits above represent just over 15% (protocol + storage) overhead
             }
 
             // Reset average for this device
@@ -118,7 +122,6 @@ void writeDataRow(uint8_t data)
     }
 
     if (data == ROW_TIME) {
-        timer.updateTime();
         romManager.table.data[romManager.config.rowCounter] = TIME_ROW_HEADER | GetTime();
     } else if (data == ROW_ACCEL) {
         // 30 bits
@@ -243,10 +246,10 @@ void sendROMPage(uint8_t pageNumber)
     d("Transferring Page " + String(pageNumber));
     uint8_t *p;
     if (pageNumber == romManager.config.pageCounter) {
-      // Current data that hasn't been written to ROM yet.
-      p = (uint8_t *)romManager.table.data;
+        // Current data that hasn't been written to ROM yet.
+        p = (uint8_t *)romManager.table.data;
     } else {
-      p = (uint8_t *)ADDRESS_OF_PAGE(pageNumber);
+        p = (uint8_t *)ADDRESS_OF_PAGE(pageNumber);
     }
     char payload[15];
     bool success = false;
