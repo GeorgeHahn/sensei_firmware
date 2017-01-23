@@ -96,9 +96,11 @@ int transferPacketsLeft = 0;
 int transferBytes = 0;
 int transferBufferIndex = 0;
 uint8_t transferCounter = 0;
+uint8_t pageCounter = 0;
+uint8_t pageNumber = 0;
 uint8_t transferID = 0xFF;
-#define input_size (1024)
-uint8_t transferBuffer[input_size];
+#define PAGE_SIZE (1024)
+uint8_t transferBuffer[PAGE_SIZE];
 void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi)
 {
     if (len < 2) {
@@ -116,10 +118,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
     // SimbleeCOM max packet size is 15 bytes
     // Parse as RADIO_RESPONSE_ROWS packet and return
-    if (len == 15) {
-        if (!transferInProgress) {
-            return;
-        }
+    if (len == 15 && transferInProgress) {
 
         bool error = false;
 
@@ -150,23 +149,25 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             transferCounter++;
 
             for (int i = 1; i < len; i++) {
-                // Hex in debug mode; binary in release mode
                 transferBuffer[transferBufferIndex++] = payload[i];
             }
-
             transferPacketsLeft--;
         }
 
         if (transferPacketsLeft == 0 || error) {
-            // If error, print all of the bytes, then send an error header
-            for (int i = 0; i < input_size; i++) {
-                // Hex in debug mode; binary in release mode
-                PrintByte(transferBuffer[i]);
-            }
-            Serial.println();
-
+            // print error flag
             if (error) {
-                PrintPageHeader(transferID, HEADER_TYPE_ERROR, 0 /* TODO: error code */, false);
+              d("error occured receiving page");
+              PrintByte(0);
+              PrintByte(0);
+            } else {
+              dn("page size: ");
+              PrintByte(transferBytes >> 8);
+              PrintByte(transferBytes & 0xff);
+              d("");
+              // print all of the bytes (hex in debug)
+              PrintData(transferBuffer, transferBytes);
+              Serial.println();
             }
 
             transferInProgress = false;
@@ -177,6 +178,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             transferBufferIndex = 0;
             transferID = 0;
         }
+        return;
     }
 
     uint8_t command = payload[0];
@@ -192,22 +194,33 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             Serial.println("ERROR: Transfer already in progress");
         }
         transferInProgress = true;
-        d("Page number: " + String((uint8_t)payload[2]));
-        dn("Device: ");
-        dn("Full pages: ");
-        d(payload[6]);
-        d(esn);
-        d();
-
+        pageNumber = (uint8_t)payload[2];
         transferEsn = esn;
         transferBytes = (uint8_t)payload[3] << 8 | (uint8_t)payload[4];
+        d("transferBytes: " + String(transferBytes));
         transferPacketsLeft = (uint8_t)payload[5];
+        d("transferPacketsLeft: " + String(transferPacketsLeft));
+        pageCounter = (uint8_t)payload[6];
+        d("pageCounter: " + String(pageCounter));
+        d();
+
+        // Before the first page, print page count
+        if (pageNumber == STORAGE_FLASH_PAGE) {
+          dn("page count: ");
+          PrintByte((STORAGE_FLASH_PAGE - pageCounter) + 1);
+          d("");
+        }
+
+        dn("page number: ");
+        PrintByte(STORAGE_FLASH_PAGE - pageNumber);
+        d("");
+
         transferCounter = 0;
         transferID = id;
         transferBufferIndex = 0;
 
         // Print row length
-        PrintPageHeader(transferID, HEADER_TYPE_LENGTH, transferBytes, false);
+        //PrintPageHeader(transferID, HEADER_TYPE_LENGTH, transferBytes, false);
 
         // Zero our buffer (not strictly necessary)
         memset(transferBuffer, 0, 1024);
@@ -215,7 +228,10 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
     case RADIO_RESPONSE_BATTERY:
         // Print battery level
-        PrintPageHeader(id, HEADER_TYPE_BATTERY, (uint8_t)payload[2], false);
+        if (len == 4) {
+          d("Battery level for " + String((uint8_t)payload[1]) + " is " + String((uint8_t)payload[2]) + "%");
+        }
+        //PrintPageHeader(id, HEADER_TYPE_BATTERY, (uint8_t)payload[2], false);
         break;
 
     case RADIO_PROX_PING:
