@@ -167,7 +167,6 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
               d("");
               // print all of the bytes (hex in debug)
               PrintData(transferBuffer, transferBytes);
-              Serial.println();
             }
 
             transferInProgress = false;
