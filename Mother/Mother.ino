@@ -212,6 +212,9 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         transferID = id;
         transferBufferIndex = 0;
 
+        // Stop requesting a transfer from this device (TODO: maybe verify this is the expected device? Not much we can do about it though)
+        pendingDataRequestForSensorId = 0;
+
         // Print row length
         PrintPageHeader(transferID, HEADER_TYPE_LENGTH, transferBytes, payload[2], false);
 
@@ -240,6 +243,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
     case RADIO_RESPONSE_ROWS:
         // Handled above; all 15B packets are interpreted as RADIO_RESPONSE_ROWS packets
+
         break;
 
     case RADIO_RESPONSE_PAGEINFO:
@@ -297,7 +301,7 @@ void synchronizeTime()
 #endif
 
     // Wait until sensors are listening to request data
-    if (timer.t.seconds % 10 == 0 && pendingDataRequestForSensorId > 0) {
+    if (pendingDataRequestForSensorId > 0 && timer.t.seconds % 10 == 0) {
         delay(100);
         RequestROMFull(pendingDataRequestForSensorId);
         pendingDataRequestForSensorId = 0;
