@@ -137,7 +137,7 @@ int RTC_Interrupt(uint32_t ulPin)
 
     // Collect data every few seconds if we're in the data collection period
     if (timer.t.seconds % 10 == 0) {
-        if (alwaysCollectMode || timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
+        if (timer.inDataCollectionPeriod(START_HOUR, START_MINUTE, END_HOUR, END_MINUTE)) {
             collectData = true;
         }
         Serial.println("");

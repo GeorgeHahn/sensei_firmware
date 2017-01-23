@@ -11,8 +11,9 @@
 // get board type
 #include "../../config.h"
 
-// Override schedule
-bool alwaysCollectMode = false;
+// Set to non-zero if mother node should request data for sensor on next
+// collection interval
+uint8_t pendingDataRequestForSensorId = 0;
 
 void InterpretCommand()
 {
@@ -30,14 +31,7 @@ void InterpretCommand()
     } else
 
 #ifndef MOTHER_NODE
-    if (ch == 'A' || ch == 'a') {
-        alwaysCollectMode = ReadChar() == '1';
-        if (alwaysCollectMode) {
-            d("alwaysCollectMode is on");
-        } else {
-            d("alwaysCollectMode is off");
-        }
-    } else if (ch == 'I' || ch == 'i') {
+    if (ch == 'I' || ch == 'i') {
         PrintByte(romManager.config.deviceID);
     } else if (ch == 'P' || ch == 'p') {
         romManager.printROM();
@@ -54,7 +48,7 @@ void InterpretCommand()
     if (ch == 'D' || ch == 'd') {
         // Request full flash dump
         uint8_t id = ReadHexByte();
-        RequestROMFull(id);
+        pendingDataRequestForSensorId = id;
     } else if (ch == 'S' || ch == 's') {
         // Request a partial ROM dump
         //RequestROMPartial();
@@ -73,8 +67,6 @@ void InterpretCommand()
         Serial.println("Available commands:");
         Serial.println("\tT: program system time");
 #ifndef MOTHER_NODE
-        Serial.println("\tA1: Always collect data");
-        Serial.println("\tA0: Collect data during scheduled times");
         Serial.println("\tI: print device ID");
         Serial.println("\tP: print ROM");
         Serial.println("\tE: erase ROM");

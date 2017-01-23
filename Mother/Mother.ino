@@ -302,4 +302,11 @@ void synchronizeTime()
     dn("Broadcasting RTC Time: ");
     timer.displayDateTime();
 #endif
+
+    // Wait until sensors are listening to request data
+    if (timer.t.seconds % 10 == 0 && pendingDataRequestForSensorId > 0) {
+        delay(100);
+        RequestROMFull(pendingDataRequestForSensorId);
+        pendingDataRequestForSensorId = 0;
+    }
 }
