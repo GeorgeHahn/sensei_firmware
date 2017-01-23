@@ -99,13 +99,13 @@ Flash is separated into 4 byte rows (every four bytes is a new row)
 
 ## Row headers
 
-The first two bits of a row is its header.
+The first three bits of a row determine the row type.
 
-0b1: Data row
-0b000: Accelerometer row
-0b010: Time row (not currently used)
-0b011: Reserved for future use
-0b001: Special row
+ * 0b1xx: Data row
+ * 0b000: Accelerometer row
+ * 0b010: Time row (not currently used)
+ * 0b011: Reserved for future use
+ * 0b001: Special row
 
 ## Data row
 0b1, Time (13 bits), rssi (7 bits), unused (3 bits), ID (8 bits)
@@ -113,7 +113,7 @@ The first two bits of a row is its header.
 
 RSSI is negated. Eg an RSSI of -100 (0b10011100) would be stored as 100 (0b01100100)
 
-ID is an unsigned byte corresponding to the ID of the device seen. Note that the network size is currently limited to 64 devices. 
+ID is an unsigned byte corresponding to the ID of the device seen. Note that the network size is currently limited to 64 devices.
 
 ## Accelerometer row
 Accelerometer x, z reading. Each value is 14 bits (mask 0x3FFF):
