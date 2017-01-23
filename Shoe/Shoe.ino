@@ -91,7 +91,7 @@ void SendBatteryLevel()
     if (!STUDENT_TRACKER) {
         return;
     }
-    char payload[] = {RADIO_RESPONSE_BATTERY, get_battery_pct(), 0x00};
+    char payload[] = {RADIO_RESPONSE_BATTERY, romManager.config.deviceID, get_battery_pct()};
 
     bool success = false;
     while (!success) {
