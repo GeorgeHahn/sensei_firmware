@@ -1,4 +1,4 @@
-#define DEBUG (1)
+//#define DEBUG (1)
 
 #ifdef DEBUG
 #define d(x) Serial.println(x)

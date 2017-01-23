@@ -10,8 +10,26 @@
 
 #include <SimbleeCOM.h>
 
+
+void ProcessPacket(unsigned int esn, const uint8_t payload, int len, int rssi);
+
 unsigned long deviceOnlineTime[NETWORK_SIZE];
 bool RTC_FLAG = false;
+
+typedef struct packet {
+  unsigned long millis;
+  unsigned int esn;
+  uint8_t data[15];
+  int len;
+  int rssi;
+} packet;
+
+#define PACKET_BUFFER_SIZE 256
+
+packet packets[PACKET_BUFFER_SIZE];
+unsigned int packetsHead;
+unsigned int packetsTail;
+unsigned int packetsCount;
 
 void setup()
 {
@@ -33,9 +51,36 @@ void setup()
 
 void loop()
 {
+  if (packetsCount == 0) {
     delay(5);
     synchronizeTime();
     InterpretCommand();
+  } else {
+    while (packetsCount > 0) {
+      packet *p = &packets[packetsTail];
+      ProcessPacket(p->esn, p->data, p->len, p->rssi);
+      packetsCount--;
+      packetsTail++;
+      if (packetsTail >= PACKET_BUFFER_SIZE) {
+        packetsTail = 0;
+      }
+    }
+  }
+}
+
+void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi)
+{
+  packet *p = &packets[packetsHead];
+  p->millis = millis();
+  p->esn = esn;
+  memcpy(p->data, payload, len);
+  p->len = len;
+  p-> rssi = rssi;
+  packetsHead++;
+  packetsCount++;
+  if (packetsHead >= PACKET_BUFFER_SIZE) {
+    packetsHead = 0;
+  }
 }
 
 /*
@@ -100,10 +145,12 @@ int transferPacketsLeft = 0;
 int transferBytes = 0;
 int transferBufferIndex = 0;
 uint8_t transferCounter = 0;
+uint8_t pageCounter = 0;
+uint8_t pageNumber = 0;
 uint8_t transferID = 0xFF;
-#define input_size (1024)
-uint8_t transferBuffer[input_size];
-void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi)
+#define PAGE_SIZE (1024)
+uint8_t transferBuffer[PAGE_SIZE];
+void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
 {
     if (len < 2) {
         dn("Invalid payload");
@@ -120,10 +167,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
     // SimbleeCOM max packet size is 15 bytes
     // Parse as RADIO_RESPONSE_ROWS packet and return
-    if (len == 15) {
-        if (!transferInProgress) {
-            return;
-        }
+    if (len == 15 && transferInProgress) {
 
         bool error = false;
 
@@ -155,24 +199,26 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
             // TODO: With counter, we can easily fill in the buffer and track chunks that have been Received, requesting missed chunks at the end
             for (int i = 1; i < len; i++) {
-                // Hex in debug mode; binary in release mode
                 transferBuffer[transferBufferIndex++] = payload[i];
             }
-
             transferPacketsLeft--;
         }
 
         // If complete, print all bytes and reset for the next transfer
         // If error, print all of the bytes, then send an error header and reset for the next transfer
         if (transferPacketsLeft == 0 || error) {
-            for (int i = 0; i < input_size; i++) {
-                // Hex in debug mode; binary in release mode
-                PrintByte(transferBuffer[i]);
-            }
-            Serial.println();
-
+            // print error flag
             if (error) {
-                PrintPageHeader(transferID, HEADER_TYPE_ERROR, 0 /* TODO: error code */, 0, false);
+              d("error occured receiving page");
+              PrintByte(0);
+              PrintByte(0);
+            } else {
+              dn("page size: ");
+              PrintByte(transferBytes >> 8);
+              PrintByte(transferBytes & 0xff);
+              d("");
+              // print all of the bytes (hex in debug)
+              PrintData(transferBuffer, transferBytes);
             }
 
             transferInProgress = false;
@@ -183,6 +229,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             transferBufferIndex = 0;
             transferID = 0;
         }
+        return;
     }
 
     uint8_t command = payload[0];
@@ -198,25 +245,30 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
             Serial.println("ERROR: Transfer already in progress");
         }
         transferInProgress = true;
-        d("Page number: " + String((uint8_t)payload[2]));
-        dn("Device: ");
-        dn("Full pages: ");
-        d(payload[6]);
-        d(esn);
-        d();
-
+        pageNumber = (uint8_t)payload[2];
         transferEsn = esn;
         transferBytes = (uint8_t)payload[3] << 8 | (uint8_t)payload[4];
+        d("transferBytes: " + String(transferBytes));
         transferPacketsLeft = (uint8_t)payload[5];
+        d("transferPacketsLeft: " + String(transferPacketsLeft));
+        pageCounter = (uint8_t)payload[6];
+        d("pageCounter: " + String(pageCounter));
+        d();
+
+        // Before the first page, print page count
+        if (pageNumber == STORAGE_FLASH_PAGE) {
+          dn("page count: ");
+          PrintByte((STORAGE_FLASH_PAGE - pageCounter) + 1);
+          d("");
+        }
+
+        dn("page number: ");
+        PrintByte(STORAGE_FLASH_PAGE - pageNumber);
+        d("");
+
         transferCounter = 0;
         transferID = id;
         transferBufferIndex = 0;
-
-        // Stop requesting a transfer from this device (TODO: maybe verify this is the expected device? Not much we can do about it though)
-        pendingDataRequestForSensorId = 0;
-
-        // Print row length
-        PrintPageHeader(transferID, HEADER_TYPE_LENGTH, transferBytes, payload[2], false);
 
         // Zero our buffer (not strictly necessary)
         memset(transferBuffer, 0, 1024);
@@ -224,7 +276,10 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
 
     case RADIO_RESPONSE_BATTERY:
         // Print battery level
-        PrintPageHeader(id, HEADER_TYPE_BATTERY, (uint8_t)payload[2], 0, false);
+        if (len == 4) {
+          d("Battery level for " + String((uint8_t)payload[1]) + " is " + String((uint8_t)payload[2]) + "%");
+        }
+        //PrintPageHeader(id, HEADER_TYPE_BATTERY, (uint8_t)payload[2], 0, false);
         break;
 
     case RADIO_PROX_PING:
