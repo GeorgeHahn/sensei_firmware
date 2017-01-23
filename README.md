@@ -53,14 +53,11 @@ Where N is an ASCII hex value corresponding to the device that should be downloa
 
 Response:
 
-Binary data
-
-{pageID, row, data} xN
-pageID: [one byte] the flash page being transfered
-row: [one byte] the flash row being transfered
-data: 12 bytes of data
-
-[Repeated xN for all non-empty flash pages]
+Binary data: First byte is numPages(uin8_t), followed by that many pages.
+Each page has a three byte header, which is {pageNum, hiByteLen, lowByteLen}.
+After the page header is the raw page data, which contains the flash rows
+described below.  if (hiByteLen << 8 + lowBytLen) == 0, then that means the
+mothernode had an error receiving that page.
 
 ### TODO: Single page downloads
 Command: 'S'
