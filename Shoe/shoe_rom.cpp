@@ -143,7 +143,7 @@ void writeDataRow(uint8_t data)
 	//  Data[]
  */
 
-#define PAGE_SZ 1024
+#define PAGE_SZ (1024)
 #define COMP_SZ (PAGE_SZ + (PAGE_SZ / 2) + 4)
 uint8_t comp[COMP_SZ];
 void sendROMPage_heatshrink(uint8_t pageNumber)
@@ -240,7 +240,7 @@ void sendROM_heatshrink()
 	//  Data[]
  */
 
-#define size 1024
+#define size (1024)
 void sendROMPage(uint8_t pageNumber)
 {
     d("Transferring Page " + String(pageNumber));
