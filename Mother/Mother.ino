@@ -10,8 +10,26 @@
 
 #include <SimbleeCOM.h>
 
+
+void ProcessPacket(unsigned int esn, const uint8_t payload, int len, int rssi);
+
 unsigned long deviceOnlineTime[NETWORK_SIZE];
 bool RTC_FLAG = false;
+
+typedef struct packet {
+  unsigned long millis;
+  unsigned int esn;
+  uint8_t data[15];
+  int len;
+  int rssi;
+} packet;
+
+#define PACKET_BUFFER_SIZE 256
+
+packet packets[PACKET_BUFFER_SIZE];
+unsigned int packetsHead;
+unsigned int packetsTail;
+unsigned int packetsCount;
 
 void setup()
 {
@@ -33,9 +51,36 @@ void setup()
 
 void loop()
 {
+  if (packetsCount == 0) {
     delay(5);
     synchronizeTime();
     InterpretCommand();
+  } else {
+    while (packetsCount > 0) {
+      packet *p = &packets[packetsTail];
+      ProcessPacket(p->esn, p->data, p->len, p->rssi);
+      packetsCount--;
+      packetsTail++;
+      if (packetsTail >= PACKET_BUFFER_SIZE) {
+        packetsTail = 0;
+      }
+    }
+  }
+}
+
+void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi)
+{
+  packet *p = &packets[packetsHead];
+  p->millis = millis();
+  p->esn = esn;
+  memcpy(p->data, payload, len);
+  p->len = len;
+  p-> rssi = rssi;
+  packetsHead++;
+  packetsCount++;
+  if (packetsHead >= PACKET_BUFFER_SIZE) {
+    packetsHead = 0;
+  }
 }
 
 /*
@@ -101,7 +146,7 @@ uint8_t pageNumber = 0;
 uint8_t transferID = 0xFF;
 #define PAGE_SIZE (1024)
 uint8_t transferBuffer[PAGE_SIZE];
-void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi)
+void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
 {
     if (len < 2) {
         dn("Invalid payload");
