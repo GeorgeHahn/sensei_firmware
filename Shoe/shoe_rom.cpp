@@ -241,7 +241,13 @@ void sendROM_heatshrink()
 void sendROMPage(uint8_t pageNumber)
 {
     d("Transferring Page " + String(pageNumber));
-    data *p = (data *)ADDRESS_OF_PAGE(pageNumber);
+    uint8_t *p;
+    if (pageNumber == romManager.config.pageCounter) {
+      // Current data that hasn't been written to ROM yet.
+      p = (uint8_t *)romManager.table.data;
+    } else {
+      p = (uint8_t *)ADDRESS_OF_PAGE(pageNumber);
+    }
     char payload[15];
     bool success = false;
 
@@ -273,7 +279,7 @@ void sendROMPage(uint8_t pageNumber)
     while (count < size) {
         payload[0] = counter;
         for (int i = 1; i < 15; i++) {
-            payload[i] = p->data[count++];
+            payload[i] = p[count++];
         }
 
         success = false;
