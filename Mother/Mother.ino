@@ -198,6 +198,7 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
             transferCounter++;
 
             // TODO: With counter, we can easily fill in the buffer and track chunks that have been Received, requesting missed chunks at the end
+            // (that will req some protocol support for sending chunk offsets)
             for (int i = 1; i < len; i++) {
                 transferBuffer[transferBufferIndex++] = payload[i];
             }
