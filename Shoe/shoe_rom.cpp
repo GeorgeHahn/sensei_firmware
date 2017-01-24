@@ -70,14 +70,6 @@ void writeData()
  */
 void writeDataRow(uint8_t data)
 {
-    // If this page is full, write it to flash
-    romManager.CheckPageSpace();
-
-    // Don't try to save if we're out of space
-    if (romManager.OutOfSpace()) {
-        return;
-    }
-
     if (data == ROW_PROX) {
         // TODO: Share timestamp between multiple events
         // Maybe that needs to be a different row type?
@@ -88,28 +80,23 @@ void writeDataRow(uint8_t data)
         // Proximity event
         for (int i = 0; i < NETWORK_SIZE; i++) {
             int rssiAverage = (rssiCount[i] == 0) ? -128 : rssiTotal[i] / rssiCount[i];
-            Serial.println(String(i) + "\t" + String(i) + "\t" + String(i) + "\t" + String(rssiAverage) + "\t" + String(rssiCount[i]));
+            d(String(i) + "\t" + String(i) + "\t" + String(i) + "\t" + String(rssiAverage) + "\t" + String(rssiCount[i]));
 
             // If the average RSSI was strong enough, write a proximity event row
             if (rssiAverage > -100) {
-                romManager.CheckPageSpace();
-                if (romManager.OutOfSpace()) {
-                    return;
-                }
-
                 // Convert rssiAverage to positive
                 rssiAverage = -rssiAverage;
 
                 // Write a row for this proximity event
                 // 0b1, Time (13 bits), rssi (7 bits), unused (3 bits), ID (8 bits)
                 // 0b1TTTTTTTTTTTTTRRRRRRRUUUIIIIIIII
-                romManager.table.data[romManager.config.rowCounter] = DATA_ROW_HEADER |          // 0b1...
-                                                                      time & 0x1FFF << 18 |      // Time mask: 0x7FFC0000
-                                                                      rssiAverage & 0x7F << 11 | // RSSI mask: 0x0003F800
-                                                                      // Bits 8, 9, 10 are free
-                                                                      i & 0xFF; // Device ID mask: 0x000000FF (is actually 0x3F with NETWORK_SIZE of 64)
-                                                                                // If we can find 3 more bits, we can pack these rows into 3 bytes
-                romManager.config.rowCounter++;
+                romManager.addRow(DATA_ROW_HEADER |          // 0b1...
+                                  time & 0x1FFF << 18 |      // Time mask: 0x7FFC0000
+                                  rssiAverage & 0x7F << 11 | // RSSI mask: 0x0003F800
+                                                             // Bits 8, 9, 10 are free
+                                  i & 0xFF);                 // Device ID mask: 0x000000FF (is actually 0x3F with NETWORK_SIZE of 64)
+                                                             // If we can find 3 more bits, we can pack these rows into 3 bytes
+
                 // Unused bits above represent just over 15% (protocol + storage) overhead
             }
 
@@ -122,17 +109,16 @@ void writeDataRow(uint8_t data)
     }
 
     if (data == ROW_TIME) {
-        romManager.table.data[romManager.config.rowCounter] = TIME_ROW_HEADER | GetTime();
+        romManager.addRow(TIME_ROW_HEADER | GetTime());
     } else if (data == ROW_ACCEL) {
         // 30 bits
         // ZZZZZZZZZZZZZZZXXXXXXXXXXXXXXX
-        romManager.table.data[romManager.config.rowCounter] = ACCEL_ROW_HEADER |
-                                                              (min(xAccelerometerDiff / (10 * accelerometerCount), 0x7FFF)) |
-                                                              (min(zAccelerometerDiff / (10 * accelerometerCount), 0x7FFF) << 15);
+        romManager.addRow(ACCEL_ROW_HEADER |
+                          (min(xAccelerometerDiff / (10 * accelerometerCount), 0x7FFF)) |
+                          (min(zAccelerometerDiff / (10 * accelerometerCount), 0x7FFF) << 15));
     } else if (data == ROW_RESET) {
-        romManager.table.data[romManager.config.rowCounter] = RESET_ROW_HEADER;
+        romManager.addRow(RESET_ROW_HEADER);
     }
-    romManager.config.rowCounter++;
 }
 
 /*
