@@ -322,6 +322,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
     case RADIO_RESPONSE_COMPLETE:
         break;
     default:
+#ifdef DEBUG
         dn("Invalid payload");
         dn(esn);
         dn("(");
@@ -330,6 +331,7 @@ void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rs
         for (int i = 0; i < len; i++)
             PrintByteDebug(payload[i]);
         d("");
+#endif
         break;
     }
 }
@@ -342,6 +344,8 @@ void synchronizeTime()
     DS3231_get(&rtcTime);
     timer.setInitialTime(rtcTime.mon, rtcTime.mday, rtcTime.year_s,
                          rtcTime.wday, rtcTime.hour, rtcTime.min, rtcTime.sec);
+#ifdef DEBUG
     Serial.print("RTC Time: ");
     timer.displayDateTime();
+#endif
 }
