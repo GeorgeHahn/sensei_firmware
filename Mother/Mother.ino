@@ -90,7 +90,15 @@ void printOnlineDevices()
 {
     Serial.print("O" + String(":"));
     for (int i = 0; i < NETWORK_SIZE; i++) {
+#ifdef DEBUG
+        if (deviceOnlineTime[i] == 0) {
+            Serial.print(",");
+        } else {
+            Serial.print(String(millis() - deviceOnlineTime[i]) + ",");
+        }
+#else
         Serial.print(String(millis() - deviceOnlineTime[i] < SECONDS_TO_TRACK * 1000 && millis() > SECONDS_TO_TRACK * 1000) + ",");
+#endif
     }
     Serial.println();
 }
@@ -285,7 +293,7 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
     case RADIO_PROX_PING:
         // Proximity beacon
         dn("Device online: ");
-        d(id);
+        PrintByteDebug(id);
 
         if (id >= NETWORK_SIZE) {
             Serial.println("Device ID out of range: " + String(id));
