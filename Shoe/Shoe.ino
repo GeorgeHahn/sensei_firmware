@@ -65,8 +65,12 @@ void setup()
         delay(5);
         InterpretCommand();
 
-        delay(600); // TODO may want to loop InterpretCommand during this
-        Simblee_ULPDelay(MILLISECONDS(800));
+        // Don't try to sleep if the deviceID isn't set
+        // (going to sleep may mess up the serial console; fresh devices need console access to set the ID)
+        if (romManager.config.deviceID != 0x00) {
+            delay(600); // TODO may want to loop InterpretCommand during this
+            Simblee_ULPDelay(MILLISECONDS(800));
+        }
     }
     stopBroadcast();
     d("Time set.");
