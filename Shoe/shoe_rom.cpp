@@ -19,7 +19,7 @@ uint16_t GetTime()
     // Update timer numbers
     timer.updateTime();
 
-    return (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10) && 0x1FFF;
+    return (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10) & 0x1FFF;
 }
 
 /*
@@ -90,12 +90,12 @@ void writeDataRow(uint8_t data)
                 // Write a row for this proximity event
                 // 0b1, Time (13 bits), rssi (7 bits), unused (3 bits), ID (8 bits)
                 // 0b1TTTTTTTTTTTTTRRRRRRRUUUIIIIIIII
-                romManager.addRow(DATA_ROW_HEADER |          // 0b1...
-                                  time & 0x1FFF << 18 |      // Time mask: 0x7FFC0000
-                                  rssiAverage & 0x7F << 11 | // RSSI mask: 0x0003F800
-                                                             // Bits 8, 9, 10 are free
-                                  i & 0xFF);                 // Device ID mask: 0x000000FF (is actually 0x3F with NETWORK_SIZE of 64)
-                                                             // If we can find 3 more bits, we can pack these rows into 3 bytes
+                romManager.addRow(DATA_ROW_HEADER |                      // 0b1...
+                                  ((uint32_t)time & 0x1FFF) << 18 |      // Time mask: 0x7FFC0000
+                                  ((uint32_t)rssiAverage & 0x7F) << 11 | // RSSI mask: 0x0003F800
+                                                                         // Bits 8, 9, 10 are free
+                                  i & 0xFF);                             // Device ID mask: 0x000000FF (is actually 0x3F with NETWORK_SIZE of 64)
+                                                                         // If we can find 3 more bits, we can pack these rows into 3 bytes
 
                 // Unused bits above represent just over 15% (protocol + storage) overhead
             }
@@ -115,7 +115,7 @@ void writeDataRow(uint8_t data)
         // ZZZZZZZZZZZZZZZXXXXXXXXXXXXXXX
         romManager.addRow(ACCEL_ROW_HEADER |
                           (min(xAccelerometerDiff / (10 * accelerometerCount), 0x7FFF)) |
-                          (min(zAccelerometerDiff / (10 * accelerometerCount), 0x7FFF) << 15));
+                          ((uint32_t)min(zAccelerometerDiff / (10 * accelerometerCount), 0x7FFF) << 15));
     } else if (data == ROW_RESET) {
         romManager.addRow(RESET_ROW_HEADER);
     }

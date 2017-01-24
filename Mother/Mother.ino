@@ -10,18 +10,17 @@
 
 #include <SimbleeCOM.h>
 
-
 void ProcessPacket(unsigned int esn, const uint8_t payload, int len, int rssi);
 
 unsigned long deviceOnlineTime[NETWORK_SIZE];
 bool RTC_FLAG = false;
 
 typedef struct packet {
-  unsigned long millis;
-  unsigned int esn;
-  uint8_t data[15];
-  int len;
-  int rssi;
+    unsigned long millis;
+    unsigned int esn;
+    uint8_t data[15];
+    int len;
+    int rssi;
 } packet;
 
 #define PACKET_BUFFER_SIZE 256
@@ -51,36 +50,36 @@ void setup()
 
 void loop()
 {
-  if (packetsCount == 0) {
-    delay(5);
-    synchronizeTime();
-    InterpretCommand();
-  } else {
-    while (packetsCount > 0) {
-      packet *p = &packets[packetsTail];
-      ProcessPacket(p->esn, p->data, p->len, p->rssi);
-      packetsCount--;
-      packetsTail++;
-      if (packetsTail >= PACKET_BUFFER_SIZE) {
-        packetsTail = 0;
-      }
+    if (packetsCount == 0) {
+        delay(5);
+        synchronizeTime();
+        InterpretCommand();
+    } else {
+        while (packetsCount > 0) {
+            packet *p = &packets[packetsTail];
+            ProcessPacket(p->esn, p->data, p->len, p->rssi);
+            packetsCount--;
+            packetsTail++;
+            if (packetsTail >= PACKET_BUFFER_SIZE) {
+                packetsTail = 0;
+            }
+        }
     }
-  }
 }
 
 void SimbleeCOM_onReceive(unsigned int esn, const char *payload, int len, int rssi)
 {
-  packet *p = &packets[packetsHead];
-  p->millis = millis();
-  p->esn = esn;
-  memcpy(p->data, payload, len);
-  p->len = len;
-  p-> rssi = rssi;
-  packetsHead++;
-  packetsCount++;
-  if (packetsHead >= PACKET_BUFFER_SIZE) {
-    packetsHead = 0;
-  }
+    packet *p = &packets[packetsHead];
+    p->millis = millis();
+    p->esn = esn;
+    memcpy(p->data, payload, len);
+    p->len = len;
+    p->rssi = rssi;
+    packetsHead++;
+    packetsCount++;
+    if (packetsHead >= PACKET_BUFFER_SIZE) {
+        packetsHead = 0;
+    }
 }
 
 /*
@@ -91,7 +90,15 @@ void printOnlineDevices()
 {
     Serial.print("O" + String(":"));
     for (int i = 0; i < NETWORK_SIZE; i++) {
+#ifdef DEBUG
+        if (deviceOnlineTime[i] == 0) {
+            Serial.print(",");
+        } else {
+            Serial.print(String(millis() - deviceOnlineTime[i]) + ",");
+        }
+#else
         Serial.print(String(millis() - deviceOnlineTime[i] < SECONDS_TO_TRACK * 1000 && millis() > SECONDS_TO_TRACK * 1000) + ",");
+#endif
     }
     Serial.println();
 }
@@ -210,16 +217,16 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
         if (transferPacketsLeft == 0 || error) {
             // print error flag
             if (error) {
-              d("error occured receiving page");
-              PrintByte(0);
-              PrintByte(0);
+                d("error occured receiving page");
+                PrintByte(0);
+                PrintByte(0);
             } else {
-              dn("page size: ");
-              PrintByte(transferBytes >> 8);
-              PrintByte(transferBytes & 0xff);
-              d("");
-              // print all of the bytes (hex in debug)
-              PrintData(transferBuffer, transferBytes);
+                dn("page size: ");
+                PrintByte(transferBytes >> 8);
+                PrintByte(transferBytes & 0xff);
+                d("");
+                // print all of the bytes (hex in debug)
+                PrintData(transferBuffer, transferBytes);
             }
 
             transferInProgress = false;
@@ -258,9 +265,9 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
 
         // Before the first page, print page count
         if (pageNumber == STORAGE_FLASH_PAGE) {
-          dn("page count: ");
-          PrintByte((STORAGE_FLASH_PAGE - pageCounter) + 1);
-          d("");
+            dn("page count: ");
+            PrintByte((STORAGE_FLASH_PAGE - pageCounter) + 1);
+            d("");
         }
 
         dn("page number: ");
@@ -278,7 +285,7 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
     case RADIO_RESPONSE_BATTERY:
         // Print battery level
         if (len == 4) {
-          d("Battery level for " + String((uint8_t)payload[1]) + " is " + String((uint8_t)payload[2]) + "%");
+            d("Battery level for " + String((uint8_t)payload[1]) + " is " + String((uint8_t)payload[2]) + "%");
         }
         //PrintPageHeader(id, HEADER_TYPE_BATTERY, (uint8_t)payload[2], 0, false);
         break;
@@ -286,7 +293,7 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
     case RADIO_PROX_PING:
         // Proximity beacon
         dn("Device online: ");
-        d(id);
+        PrintByteDebug(id);
 
         if (id >= NETWORK_SIZE) {
             Serial.println("Device ID out of range: " + String(id));
