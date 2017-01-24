@@ -19,7 +19,7 @@ uint16_t GetTime()
     // Update timer numbers
     timer.updateTime();
 
-    return (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10) && 0x1FFF;
+    return (((((timer.t.hours - 5) * 60) + timer.t.minutes) * 60 + timer.t.seconds) / 10) & 0x1FFF;
 }
 
 /*
