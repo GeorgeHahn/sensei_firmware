@@ -64,6 +64,24 @@ void PrNetRomManager::loadPage(int page)
 
 int PrNetRomManager::erasePage(int page) { return flashPageErase(page); }
 
+#define REV(uint32_val) (__builtin_bswap32(uint32_val))
+
+bool PrNetRomManager::addRow(uint32_t row)
+{
+    // If this page is full, write it to flash
+    romManager.CheckPageSpace();
+
+    // Don't try to save if we're out of space
+    if (romManager.OutOfSpace()) {
+        return false;
+    }
+
+    romManager.table.data[romManager.config.rowCounter] = REV(row);
+
+    romManager.config.rowCounter++;
+    return true;
+}
+
 /*
  * Erases all flash data
  * TODO: Can we just erase from pageCounter up to STORAGE_FLASH_PAGE? (Only erase used pages)

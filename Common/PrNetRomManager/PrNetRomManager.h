@@ -45,6 +45,7 @@ class PrNetRomManager
 
     bool OutOfSpace();
     void CheckPageSpace();
+    bool addRow(uint32_t row);
 };
 
 extern PrNetRomManager romManager;
