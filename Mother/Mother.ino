@@ -236,6 +236,8 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
     uint8_t command = payload[0];
     uint8_t id = payload[1];
 
+    unsigned long oldTime;
+
     // Over the air protocol, bytes:
     // 0: Command
     // 1: Device ID, if applicable
@@ -293,8 +295,15 @@ void ProcessPacket(unsigned int esn, uint8_t *payload, int len, int rssi)
             return;
         }
 
+        oldTime = deviceOnlineTime[id];
+
         // Mother node online device tracking
         deviceOnlineTime[id] = millis();
+
+        // Device just came online and we're not doing anything important
+        if (!transferInProgress && deviceOnlineTime[id] - oldTime > 15000) {
+            printOnlineDevices();
+        }
         break;
 
     case RADIO_RESPONSE_ROWS:
